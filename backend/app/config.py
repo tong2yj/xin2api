@@ -1,0 +1,195 @@
+from pydantic_settings import BaseSettings
+from typing import Optional
+import os
+import shutil
+
+# 自动创建 .env 文件（如果不存在）
+_env_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), '.env')
+_env_example_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), '.env.example')
+if not os.path.exists(_env_path) and os.path.exists(_env_example_path):
+    shutil.copy(_env_example_path, _env_path)
+    print("✅ 已自动创建 .env 配置文件")
+
+
+class Settings(BaseSettings):
+    # 数据库
+    database_url: str = "sqlite+aiosqlite:///./data/gemini_proxy.db"
+    
+    # JWT
+    secret_key: str = "your-super-secret-key-change-this"
+    algorithm: str = "HS256"
+    access_token_expire_minutes: int = 60 * 24 * 7  # 7天
+    
+    # 管理员
+    admin_username: str = "admin"
+    admin_password: str = "admin123"
+    
+    # 服务
+    host: str = "0.0.0.0"
+    port: int = 5001  # 默认端口，Zeabur 会自动设置为 8080
+    
+    # Gemini
+    gemini_api_base: str = "https://generativelanguage.googleapis.com"
+    
+    # 用户配额
+    default_daily_quota: int = 100  # 新用户默认配额
+    no_credential_quota: int = 0    # 无有效凭证用户的配额上限（0=无限制，使用用户自己的配额）
+    
+    # 无凭证用户按模型分类的配额（0=禁止使用该类模型）
+    no_cred_quota_flash: int = 100  # 无凭证用户 Flash 配额
+    no_cred_quota_25pro: int = 50   # 无凭证用户 2.5 Pro 配额
+    no_cred_quota_30pro: int = 0    # 无凭证用户 3.0 配额（默认禁止）
+    
+    # 2.5凭证用户的 3.0 模型配额（只有2.5凭证没有3.0凭证的用户）
+    cred25_quota_30pro: int = 0     # 2.5凭证用户 3.0 配额（默认禁止，0=禁止）
+    
+    # 凭证奖励：按模型分类的额度配置（用户上传凭证后获得的奖励）
+    # 2.5凭证奖励 = quota_flash + quota_25pro
+    # 3.0凭证奖励 = quota_flash + quota_25pro + quota_30pro
+    credential_reward_quota: int = 1000  # 兼容旧配置
+    credential_reward_quota_25: int = 1000  # 兼容旧配置（2.5凭证总奖励）
+    credential_reward_quota_30: int = 2000  # 兼容旧配置（3.0凭证总奖励）
+    quota_flash: int = 1000  # Flash模型额度（凭证奖励）
+    quota_25pro: int = 500   # 2.5 Pro模型额度（凭证奖励）
+    quota_30pro: int = 300   # 3.0模型额度（凭证奖励）
+    
+    # 全站总额度计算基数（用于统计页面显示，根据账号类型区分）
+    # Pro 号配额
+    stats_pro_flash: int = 750      # Pro号 Flash 额度
+    stats_pro_premium: int = 250    # Pro号 2.5Pro+3.0 共用额度
+    # 非 Pro 号配额  
+    stats_free_flash: int = 1300    # 非Pro号 Flash 额度
+    stats_free_premium: int = 200   # 非Pro号 2.5Pro+3.0 共用额度
+    # 兼容旧配置项（前端设置页面使用）
+    stats_quota_flash: int = 1000   # 已废弃，保留兼容
+    stats_quota_25pro: int = 250    # 已废弃，保留兼容
+    stats_quota_30pro: int = 200    # 已废弃，保留兼容
+    
+    # 速率限制 (RPM - requests per minute)
+    base_rpm: int = 5  # 未上传凭证的用户
+    contributor_rpm: int = 10  # 上传凭证的用户
+    
+    # 错误重试
+    error_retry_count: int = 3  # 报错时切换凭证重试次数
+    
+    # CD 机制（冷却时间，单位：秒）
+    cd_flash: int = 0   # Flash 模型组 CD（0=无CD）
+    cd_pro: int = 4     # Pro 模型组 CD（默认4秒）
+    cd_30: int = 4      # 3.0 模型组 CD（默认4秒）
+    
+    # 注册
+    allow_registration: bool = True
+    discord_only_registration: bool = False  # 仅允许通过 Discord Bot 注册
+    discord_oauth_only: bool = False  # 仅允许通过 Discord OAuth 登录注册
+    
+    # 凭证池模式: 
+    # "private" - 只能用自己的凭证
+    # "tier3_shared" - 3.0凭证共享池（有3.0凭证的用户可用公共3.0池）
+    # "full_shared" - 大锅饭模式（捐赠凭证即可用所有公共池）
+    credential_pool_mode: str = "full_shared"
+    
+    # 强制捐赠：上传凭证时强制设为公开
+    force_donate: bool = False
+    
+    # 锁定捐赠：不允许取消捐赠（除非凭证失效）
+    lock_donate: bool = False
+    
+    # 公告
+    announcement_enabled: bool = False
+    announcement_title: str = ""
+    announcement_content: str = ""
+    announcement_read_seconds: int = 5  # 阅读多少秒才能关闭
+    
+    # Google OAuth (Gemini CLI 官方配置)
+    google_client_id: str = "681255809395-oo8ft2oprdrnp9e3aqf6av3hmdib135j.apps.googleusercontent.com"
+    google_client_secret: str = "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"
+    
+    # OpenAI API 反代 (可选)
+    openai_api_key: str = ""  # 如果填写，则支持真正的 OpenAI API 反代
+    openai_api_base: str = "https://api.openai.com"
+    
+    # Discord OAuth (可选，用于 Discord 登录/注册)
+    discord_client_id: str = ""
+    discord_client_secret: str = ""
+    discord_redirect_uri: str = ""  # 例如: https://你的域名/api/auth/discord/callback
+    
+    class Config:
+        env_file = ".env"
+        extra = "ignore"
+
+settings = Settings()
+
+
+# 可持久化的配置项
+PERSISTENT_CONFIG_KEYS = [
+    "allow_registration",
+    "discord_only_registration",
+    "discord_oauth_only", 
+    "default_daily_quota",
+    "no_credential_quota",
+    "no_cred_quota_flash",
+    "no_cred_quota_25pro",
+    "no_cred_quota_30pro",
+    "cred25_quota_30pro",
+    "credential_reward_quota",
+    "credential_reward_quota_25",
+    "credential_reward_quota_30",
+    "quota_flash",
+    "quota_25pro",
+    "quota_30pro",
+    "base_rpm",
+    "contributor_rpm",
+    "credential_pool_mode",
+    "force_donate",
+    "lock_donate",
+    "error_retry_count",
+    "cd_flash",
+    "cd_pro",
+    "cd_30",
+    "announcement_enabled",
+    "announcement_title",
+    "announcement_content",
+    "announcement_read_seconds",
+]
+
+
+async def load_config_from_db():
+    """从数据库加载配置"""
+    from app.database import async_session
+    from app.models.user import SystemConfig
+    from sqlalchemy import select
+    
+    async with async_session() as db:
+        result = await db.execute(select(SystemConfig))
+        configs = result.scalars().all()
+        
+        for config in configs:
+            if hasattr(settings, config.key):
+                value = config.value
+                # 类型转换
+                attr_type = type(getattr(settings, config.key))
+                if attr_type == bool:
+                    value = value.lower() in ('true', '1', 'yes')
+                elif attr_type == int:
+                    value = int(value)
+                setattr(settings, config.key, value)
+                print(f"[Config] 从数据库加载: {config.key} = {value}")
+
+
+async def save_config_to_db(key: str, value):
+    """保存单个配置到数据库"""
+    from app.database import async_session
+    from app.models.user import SystemConfig
+    from sqlalchemy import select
+    
+    async with async_session() as db:
+        result = await db.execute(select(SystemConfig).where(SystemConfig.key == key))
+        config = result.scalar_one_or_none()
+        
+        if config:
+            config.value = str(value)
+        else:
+            config = SystemConfig(key=key, value=str(value))
+            db.add(config)
+        
+        await db.commit()

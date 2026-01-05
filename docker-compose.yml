@@ -1,0 +1,28 @@
+version: '3.8'
+
+services:
+  # 后端服务
+  backend:
+    build: ./backend
+    container_name: catiecli-backend
+    ports:
+      - '${PORT:-5001}:${PORT:-5001}'
+    volumes:
+      - ./data:/app/data
+    env_file:
+      - .env
+    environment:
+      - PORT=${PORT:-5001}
+    restart: unless-stopped
+
+  # Discord Bot（可选，取消注释启用）
+  # bot:
+  #   build: ./discord-bot
+  #   container_name: catiecli-bot
+  #   env_file:
+  #     - .env
+  #   environment:
+  #     - API_BASE_URL=http://backend:${PORT:-5001}
+  #   depends_on:
+  #     - backend
+  #   restart: unless-stopped
