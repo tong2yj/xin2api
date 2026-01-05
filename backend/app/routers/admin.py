@@ -20,9 +20,6 @@ class UserUpdate(BaseModel):
     is_active: Optional[bool] = None
     is_admin: Optional[bool] = None
     daily_quota: Optional[int] = None
-    quota_flash: Optional[int] = None
-    quota_25pro: Optional[int] = None
-    quota_30pro: Optional[int] = None
 
 
 class UserPasswordUpdate(BaseModel):
@@ -82,50 +79,20 @@ async def list_users(
         today_usage = usage_map.get(u.id, 0)
         credential_count = cred_map.get(u.id, 0)
         cred_30_count = cred_30_map.get(u.id, 0)
-        
-        # 计算真实配额
-        if u.quota_flash and u.quota_flash > 0:
-            quota_flash = u.quota_flash
-        elif credential_count > 0:
-            quota_flash = credential_count * settings.quota_flash
-        else:
-            quota_flash = settings.no_cred_quota_flash
-        
-        if u.quota_25pro and u.quota_25pro > 0:
-            quota_25pro = u.quota_25pro
-        elif credential_count > 0:
-            quota_25pro = credential_count * settings.quota_25pro
-        else:
-            quota_25pro = settings.no_cred_quota_25pro
-        
-        if u.quota_30pro and u.quota_30pro > 0:
-            quota_30pro = u.quota_30pro
-        elif cred_30_count > 0:
-            quota_30pro = cred_30_count * settings.quota_30pro
-        elif credential_count > 0:
-            quota_30pro = settings.cred25_quota_30pro
-        else:
-            quota_30pro = settings.no_cred_quota_30pro
-        
-        total_quota = quota_flash + quota_25pro + quota_30pro
-        
+
         user_list.append({
             "id": u.id,
             "username": u.username,
             "email": u.email,
             "is_active": u.is_active,
             "is_admin": u.is_admin,
-            "daily_quota": total_quota,
-            "quota_flash": quota_flash,
-            "quota_25pro": quota_25pro,
-            "quota_30pro": quota_30pro,
+            "daily_quota": u.daily_quota,
             "today_usage": today_usage,
             "credential_count": credential_count,
-            "discord_id": u.discord_id,
-            "discord_name": u.discord_name,
+            "cred_30_count": cred_30_count,
             "created_at": u.created_at
         })
-    
+
     return {"users": user_list, "total": len(user_list)}
 
 
@@ -148,13 +115,7 @@ async def update_user(
         user.is_admin = data.is_admin
     if data.daily_quota is not None:
         user.daily_quota = data.daily_quota
-    if data.quota_flash is not None:
-        user.quota_flash = data.quota_flash
-    if data.quota_25pro is not None:
-        user.quota_25pro = data.quota_25pro
-    if data.quota_30pro is not None:
-        user.quota_30pro = data.quota_30pro
-    
+
     await db.commit()
     await notify_user_update()
     return {"message": "更新成功"}

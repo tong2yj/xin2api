@@ -28,6 +28,15 @@ OAUTH_SCOPES = [
     "https://www.googleapis.com/auth/userinfo.profile",
 ]
 
+# Antigravity OAuth 所需的 scope（额外增加两个权限）
+ANTIGRAVITY_SCOPES = [
+    "https://www.googleapis.com/auth/cloud-platform",
+    "https://www.googleapis.com/auth/userinfo.email",
+    "https://www.googleapis.com/auth/userinfo.profile",
+    "https://www.googleapis.com/auth/cclog",
+    "https://www.googleapis.com/auth/experimentsandconfigs",
+]
+
 # 存储 OAuth state (生产环境应使用 Redis)
 oauth_states = {}
 
@@ -82,7 +91,17 @@ async def get_auth_url_public(get_all_projects: bool = False, for_antigravity: b
 
 async def _get_auth_url_impl(get_all_projects: bool, user_id: int = None, for_antigravity: bool = False):
     """获取 OAuth 认证链接实现"""
-    if not settings.google_client_id:
+    # 根据凭证类型选择不同的 OAuth 配置
+    if for_antigravity:
+        client_id = settings.antigravity_client_id
+        client_secret = settings.antigravity_client_secret
+        scopes = ANTIGRAVITY_SCOPES
+    else:
+        client_id = settings.google_client_id
+        client_secret = settings.google_client_secret
+        scopes = OAUTH_SCOPES
+
+    if not client_id:
         raise HTTPException(status_code=400, detail="未配置 OAuth Client ID")
 
     # 生成 state
@@ -92,24 +111,24 @@ async def _get_auth_url_impl(get_all_projects: bool, user_id: int = None, for_an
         "get_all_projects": get_all_projects,
         "for_antigravity": for_antigravity  # 保存凭证类型标记
     }
-    
+
     # Gemini CLI 官方 OAuth 固定使用 localhost:8080 作为回调
     redirect_uri = "http://localhost:8080"
-    
+
     # 构建 OAuth URL
     params = {
-        "client_id": settings.google_client_id,
+        "client_id": client_id,
         "redirect_uri": redirect_uri,
-        "scope": " ".join(OAUTH_SCOPES),
+        "scope": " ".join(scopes),
         "response_type": "code",
         "access_type": "offline",
         "prompt": "consent",
         "include_granted_scopes": "true",
         "state": state
     }
-    
+
     auth_url = f"{GOOGLE_AUTH_URL}?{urlencode(params)}"
-    
+
     return {
         "auth_url": auth_url,
         "state": state,
@@ -133,13 +152,22 @@ async def oauth_callback(
     try:
         # 获取 access token (使用 Gemini CLI 官方 redirect_uri)
         redirect_uri = "http://localhost:8080"
-        
+
+        # 根据凭证类型选择对应的 client credentials
+        is_antigravity = state_data.get("for_antigravity", False)
+        if is_antigravity:
+            client_id = settings.antigravity_client_id
+            client_secret = settings.antigravity_client_secret
+        else:
+            client_id = settings.google_client_id
+            client_secret = settings.google_client_secret
+
         async with httpx.AsyncClient() as client:
             token_response = await client.post(
                 GOOGLE_TOKEN_URL,
                 data={
-                    "client_id": settings.google_client_id,
-                    "client_secret": settings.google_client_secret,
+                    "client_id": client_id,
+                    "client_secret": client_secret,
                     "code": code,
                     "grant_type": "authorization_code",
                     "redirect_uri": redirect_uri
@@ -209,13 +237,21 @@ async def credential_from_callback_url(
         
         # 获取 access token (使用 Gemini CLI 官方 redirect_uri)
         redirect_uri = "http://localhost:8080"
-        
+
+        # 根据凭证类型选择对应的 client credentials
+        if data.for_antigravity:
+            client_id = settings.antigravity_client_id
+            client_secret = settings.antigravity_client_secret
+        else:
+            client_id = settings.google_client_id
+            client_secret = settings.google_client_secret
+
         async with httpx.AsyncClient() as client:
             token_response = await client.post(
                 GOOGLE_TOKEN_URL,
                 data={
-                    "client_id": settings.google_client_id,
-                    "client_secret": settings.google_client_secret,
+                    "client_id": client_id,
+                    "client_secret": client_secret,
                     "code": code,
                     "grant_type": "authorization_code",
                     "redirect_uri": redirect_uri
@@ -245,11 +281,19 @@ async def credential_from_callback_url(
         # 使用新的 fetch_project_id 方法获取 project_id（sukaka 提供）
         project_id = ""
         try:
+            # 根据凭证类型选择不同的 API URL 和 User-Agent
+            if data.for_antigravity:
+                api_base_url = settings.antigravity_api_url
+                user_agent = "antigravity/1.11.3 windows/amd64"
+            else:
+                api_base_url = "https://cloudcode-pa.googleapis.com"
+                user_agent = "CatieCli/1.0"
+
             # 优先使用 loadCodeAssist/onboardUser 方法获取 project_id
             project_id = await fetch_project_id(
                 access_token=access_token,
-                user_agent="CatieCli/1.0",
-                api_base_url="https://cloudcode-pa.googleapis.com"
+                user_agent=user_agent,
+                api_base_url=api_base_url
             )
             if project_id:
                 print(f"[fetch_project_id] ✅ 获取到 project_id: {project_id}", flush=True)
@@ -394,17 +438,13 @@ async def credential_from_callback_url(
         # 奖励用户额度（只有新凭证、捐赠到公共池且凭证有效才奖励）
         reward_quota = 0
         if is_new_credential and data.is_public and is_valid:
-            # 根据凭证等级细分奖励：2.5=flash+25pro, 3.0=flash+25pro+30pro
-            # 使用管理员配置的分类额度计算奖励（与前端显示一致）
-            if detected_tier == "3":
-                reward_quota = settings.quota_flash + settings.quota_25pro + settings.quota_30pro
-            else:
-                reward_quota = settings.quota_flash + settings.quota_25pro
+            # 统一奖励配额
+            reward_quota = settings.credential_reward_quota
             user.daily_quota += reward_quota
-            print(f"[凭证奖励] 用户 {user.username} 获得 {reward_quota} 额度奖励 (等级: {detected_tier})", flush=True)
+            print(f"[凭证奖励] 用户 {user.username} 获得 {reward_quota} 次数奖励", flush=True)
         elif not is_new_credential:
             print(f"[凭证更新] 已存在凭证，不重复奖励额度", flush=True)
-        
+
         await db.commit()
         
         # 如果捐赠，通知更新
@@ -434,226 +474,9 @@ async def credential_from_callback_url(
             "is_valid": is_valid,
             "model_tier": detected_tier
         }
-    
+
     except HTTPException:
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"处理失败: {str(e)}")
 
-
-class DiscordCallbackRequest(BaseModel):
-    callback_url: str
-    discord_id: str
-    is_public: bool = True  # Discord 默认捐赠
-
-
-@router.post("/from-callback-url-discord")
-async def credential_from_callback_url_discord(
-    data: DiscordCallbackRequest,
-    db: AsyncSession = Depends(get_db)
-):
-    """从回调 URL 获取凭证 (Discord Bot 专用，通过 Discord ID 关联用户)"""
-    from urllib.parse import urlparse, parse_qs
-    from sqlalchemy import select
-    
-    # 查找 Discord 用户
-    result = await db.execute(select(User).where(User.discord_id == data.discord_id))
-    user = result.scalar_one_or_none()
-    if not user:
-        raise HTTPException(status_code=404, detail="请先使用 /register 注册账号")
-    
-    try:
-        parsed = urlparse(data.callback_url)
-        params = parse_qs(parsed.query)
-        
-        code = params.get("code", [None])[0]
-        if not code:
-            raise HTTPException(status_code=400, detail="URL 中未找到 code 参数，请确保复制完整的回调 URL")
-        
-        # 获取 access token
-        redirect_uri = "http://localhost:8080"
-        
-        async with httpx.AsyncClient() as client:
-            token_response = await client.post(
-                GOOGLE_TOKEN_URL,
-                data={
-                    "client_id": settings.google_client_id,
-                    "client_secret": settings.google_client_secret,
-                    "code": code,
-                    "grant_type": "authorization_code",
-                    "redirect_uri": redirect_uri
-                }
-            )
-            token_data = token_response.json()
-        
-        if "error" in token_data:
-            error_msg = token_data.get("error_description") or token_data.get("error", "获取 token 失败")
-            if "invalid_grant" in str(error_msg).lower():
-                raise HTTPException(status_code=400, detail="授权码已过期或已使用，请重新获取授权链接")
-            raise HTTPException(status_code=400, detail=error_msg)
-        
-        access_token = token_data.get("access_token")
-        refresh_token = token_data.get("refresh_token")
-        
-        # 获取用户信息
-        async with httpx.AsyncClient() as client:
-            userinfo_response = await client.get(
-                GOOGLE_USERINFO_URL,
-                headers={"Authorization": f"Bearer {access_token}"}
-            )
-            userinfo = userinfo_response.json()
-        
-        email = userinfo.get("email", "unknown")
-        
-        # 使用新的 fetch_project_id 方法获取 project_id（sukaka 提供）
-        project_id = ""
-        try:
-            project_id = await fetch_project_id(
-                access_token=access_token,
-                user_agent="CatieCli-Discord/1.0",
-                api_base_url="https://cloudcode-pa.googleapis.com"
-            )
-            if project_id:
-                print(f"[Discord OAuth] [fetch_project_id] ✅ 获取到 project_id: {project_id}", flush=True)
-        except Exception as e:
-            print(f"[Discord OAuth] [fetch_project_id] ⚠️ 获取失败: {e}", flush=True)
-        
-        # 如果新方法失败，回退到 Cloud Resource Manager API
-        if not project_id:
-            print(f"[Discord OAuth] 回退到 Cloud Resource Manager API...", flush=True)
-            try:
-                async with httpx.AsyncClient() as client:
-                    projects_response = await client.get(
-                        "https://cloudresourcemanager.googleapis.com/v1/projects",
-                        headers={"Authorization": f"Bearer {access_token}"},
-                        params={"filter": "lifecycleState:ACTIVE"}
-                    )
-                    projects_data = projects_response.json()
-                    projects = projects_data.get("projects", [])
-                    
-                    if projects:
-                        for p in projects:
-                            if "default" in p.get("projectId", "").lower():
-                                project_id = p.get("projectId")
-                                break
-                        if not project_id:
-                            project_id = projects[0].get("projectId", "")
-                        print(f"[Discord OAuth] [Cloud Resource Manager] 获取到 project_id: {project_id}", flush=True)
-            except Exception as e:
-                print(f"[Discord OAuth] [Cloud Resource Manager] 获取项目失败: {e}", flush=True)
-        
-        # 如果获取到了 project_id，尝试启用必需的 API 服务
-        if project_id:
-            try:
-                async with httpx.AsyncClient() as client:
-                    for service in ["geminicloudassist.googleapis.com", "cloudaicompanion.googleapis.com"]:
-                        try:
-                            await client.post(
-                                f"https://serviceusage.googleapis.com/v1/projects/{project_id}/services/{service}:enable",
-                                headers={"Authorization": f"Bearer {access_token}", "Content-Type": "application/json"},
-                                json={}
-                            )
-                        except:
-                            pass
-            except Exception as e:
-                print(f"[Discord OAuth] 启用服务失败: {e}", flush=True)
-        
-        # 检查是否已存在相同邮箱的凭证（去重）
-        from sqlalchemy import select
-        from app.services.crypto import encrypt_credential
-        existing_cred = await db.execute(
-            select(Credential).where(
-                Credential.user_id == user.id,
-                Credential.email == email
-            )
-        )
-        existing = existing_cred.scalar_one_or_none()
-        
-        if existing:
-            # 更新现有凭证
-            existing.api_key = encrypt_credential(access_token)
-            existing.refresh_token = encrypt_credential(refresh_token)
-            existing.project_id = project_id
-            credential = existing
-            is_new_credential = False
-            print(f"[Discord OAuth] 更新现有凭证: {email}", flush=True)
-        else:
-            # 创建新凭证
-            credential = Credential(
-                user_id=user.id,
-                name=f"Discord - {email}",
-                api_key=encrypt_credential(access_token),
-                refresh_token=encrypt_credential(refresh_token),
-                project_id=project_id,
-                credential_type="oauth",
-                email=email,
-                is_public=data.is_public
-            )
-            is_new_credential = True
-            print(f"[Discord OAuth] 创建新凭证: {email}", flush=True)
-        
-        # 验证凭证
-        is_valid = True
-        detected_tier = "2.5"
-        try:
-            async with httpx.AsyncClient(timeout=30.0) as test_client:
-                test_url = "https://cloudcode-pa.googleapis.com/v1internal:generateContent"
-                test_response = await test_client.post(
-                    test_url,
-                    headers={"Authorization": f"Bearer {access_token}", "Content-Type": "application/json"},
-                    json={"model": "gemini-2.5-flash", "project": project_id, "request": {"contents": [{"role": "user", "parts": [{"text": "hi"}]}]}}
-                )
-                if test_response.status_code == 200:
-                    # 测试 3.0
-                    test_3 = await test_client.post(
-                        test_url,
-                        headers={"Authorization": f"Bearer {access_token}", "Content-Type": "application/json"},
-                        json={"model": "gemini-2.5-pro", "project": project_id, "request": {"contents": [{"role": "user", "parts": [{"text": "hi"}]}]}}
-                    )
-                    if test_3.status_code in [200, 429]:
-                        detected_tier = "3"
-                elif test_response.status_code in [401, 403]:
-                    is_valid = False
-        except:
-            pass
-        
-        credential.model_tier = detected_tier
-        credential.is_active = is_valid
-        
-        # 只有新凭证才添加到数据库
-        if is_new_credential:
-            db.add(credential)
-        
-        # 奖励额度（只有新凭证才奖励）
-        reward_quota = 0
-        if is_new_credential and data.is_public and is_valid:
-            # 使用管理员配置的分类额度计算奖励（与前端显示一致）
-            if detected_tier == "3":
-                reward_quota = settings.quota_flash + settings.quota_25pro + settings.quota_30pro
-            else:
-                reward_quota = settings.quota_flash + settings.quota_25pro
-            user.daily_quota += reward_quota
-            print(f"[Discord OAuth] 用户 {user.username} 获得 {reward_quota} 额度奖励", flush=True)
-        
-        await db.commit()
-        
-        msg = "凭证更新成功" if not is_new_credential else "凭证添加成功"
-        if not is_new_credential:
-            msg += "（已存在相同邮箱凭证，已更新token）"
-        msg += f" 等级: {detected_tier}"
-        if reward_quota:
-            msg += f" 🎉 奖励 +{reward_quota} 额度"
-        
-        return {
-            "success": True,
-            "email": email,
-            "is_valid": is_valid,
-            "model_tier": detected_tier,
-            "reward_quota": reward_quota,
-            "message": msg
-        }
-    
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"处理失败: {str(e)}")

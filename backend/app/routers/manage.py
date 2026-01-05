@@ -855,20 +855,8 @@ async def get_config(user: User = Depends(get_current_admin)):
     from app.config import settings
     return {
         "allow_registration": settings.allow_registration,
-        "discord_only_registration": settings.discord_only_registration,
-        "discord_oauth_only": settings.discord_oauth_only,
         "default_daily_quota": settings.default_daily_quota,
-        "no_credential_quota": settings.no_credential_quota,
-        "no_cred_quota_flash": settings.no_cred_quota_flash,
-        "no_cred_quota_25pro": settings.no_cred_quota_25pro,
-        "no_cred_quota_30pro": settings.no_cred_quota_30pro,
-        "cred25_quota_30pro": settings.cred25_quota_30pro,
         "credential_reward_quota": settings.credential_reward_quota,
-        "credential_reward_quota_25": settings.credential_reward_quota_25,
-        "credential_reward_quota_30": settings.credential_reward_quota_30,
-        "quota_flash": settings.quota_flash,
-        "quota_25pro": settings.quota_25pro,
-        "quota_30pro": settings.quota_30pro,
         "base_rpm": settings.base_rpm,
         "contributor_rpm": settings.contributor_rpm,
         "error_retry_count": settings.error_retry_count,
@@ -883,9 +871,6 @@ async def get_config(user: User = Depends(get_current_admin)):
         "announcement_title": settings.announcement_title,
         "announcement_content": settings.announcement_content,
         "announcement_read_seconds": settings.announcement_read_seconds,
-        "stats_quota_flash": settings.stats_quota_flash,
-        "stats_quota_25pro": settings.stats_quota_25pro,
-        "stats_quota_30pro": settings.stats_quota_30pro,
     }
 
 
@@ -919,20 +904,8 @@ async def get_public_config():
 @router.post("/config")
 async def update_config(
     allow_registration: Optional[bool] = Form(None),
-    discord_only_registration: Optional[bool] = Form(None),
-    discord_oauth_only: Optional[bool] = Form(None),
     default_daily_quota: Optional[int] = Form(None),
-    no_credential_quota: Optional[int] = Form(None),
-    no_cred_quota_flash: Optional[int] = Form(None),
-    no_cred_quota_25pro: Optional[int] = Form(None),
-    no_cred_quota_30pro: Optional[int] = Form(None),
-    cred25_quota_30pro: Optional[int] = Form(None),
     credential_reward_quota: Optional[int] = Form(None),
-    credential_reward_quota_25: Optional[int] = Form(None),
-    credential_reward_quota_30: Optional[int] = Form(None),
-    quota_flash: Optional[int] = Form(None),
-    quota_25pro: Optional[int] = Form(None),
-    quota_30pro: Optional[int] = Form(None),
     base_rpm: Optional[int] = Form(None),
     contributor_rpm: Optional[int] = Form(None),
     error_retry_count: Optional[int] = Form(None),
@@ -946,75 +919,24 @@ async def update_config(
     announcement_title: Optional[str] = Form(None),
     announcement_content: Optional[str] = Form(None),
     announcement_read_seconds: Optional[int] = Form(None),
-    stats_quota_flash: Optional[int] = Form(None),
-    stats_quota_25pro: Optional[int] = Form(None),
-    stats_quota_30pro: Optional[int] = Form(None),
     user: User = Depends(get_current_admin)
 ):
     """更新配置（持久化保存到数据库）"""
     from app.config import settings, save_config_to_db
-    
+
     updated = {}
     if allow_registration is not None:
         settings.allow_registration = allow_registration
         await save_config_to_db("allow_registration", allow_registration)
         updated["allow_registration"] = allow_registration
-    if discord_only_registration is not None:
-        settings.discord_only_registration = discord_only_registration
-        await save_config_to_db("discord_only_registration", discord_only_registration)
-        updated["discord_only_registration"] = discord_only_registration
-    if discord_oauth_only is not None:
-        settings.discord_oauth_only = discord_oauth_only
-        await save_config_to_db("discord_oauth_only", discord_oauth_only)
-        updated["discord_oauth_only"] = discord_oauth_only
     if default_daily_quota is not None:
         settings.default_daily_quota = default_daily_quota
         await save_config_to_db("default_daily_quota", default_daily_quota)
         updated["default_daily_quota"] = default_daily_quota
-    if no_credential_quota is not None:
-        settings.no_credential_quota = no_credential_quota
-        await save_config_to_db("no_credential_quota", no_credential_quota)
-        updated["no_credential_quota"] = no_credential_quota
-    if no_cred_quota_flash is not None:
-        settings.no_cred_quota_flash = no_cred_quota_flash
-        await save_config_to_db("no_cred_quota_flash", no_cred_quota_flash)
-        updated["no_cred_quota_flash"] = no_cred_quota_flash
-    if no_cred_quota_25pro is not None:
-        settings.no_cred_quota_25pro = no_cred_quota_25pro
-        await save_config_to_db("no_cred_quota_25pro", no_cred_quota_25pro)
-        updated["no_cred_quota_25pro"] = no_cred_quota_25pro
-    if no_cred_quota_30pro is not None:
-        settings.no_cred_quota_30pro = no_cred_quota_30pro
-        await save_config_to_db("no_cred_quota_30pro", no_cred_quota_30pro)
-        updated["no_cred_quota_30pro"] = no_cred_quota_30pro
-    if cred25_quota_30pro is not None:
-        settings.cred25_quota_30pro = cred25_quota_30pro
-        await save_config_to_db("cred25_quota_30pro", cred25_quota_30pro)
-        updated["cred25_quota_30pro"] = cred25_quota_30pro
     if credential_reward_quota is not None:
         settings.credential_reward_quota = credential_reward_quota
         await save_config_to_db("credential_reward_quota", credential_reward_quota)
         updated["credential_reward_quota"] = credential_reward_quota
-    if credential_reward_quota_25 is not None:
-        settings.credential_reward_quota_25 = credential_reward_quota_25
-        await save_config_to_db("credential_reward_quota_25", credential_reward_quota_25)
-        updated["credential_reward_quota_25"] = credential_reward_quota_25
-    if credential_reward_quota_30 is not None:
-        settings.credential_reward_quota_30 = credential_reward_quota_30
-        await save_config_to_db("credential_reward_quota_30", credential_reward_quota_30)
-        updated["credential_reward_quota_30"] = credential_reward_quota_30
-    if quota_flash is not None:
-        settings.quota_flash = quota_flash
-        await save_config_to_db("quota_flash", quota_flash)
-        updated["quota_flash"] = quota_flash
-    if quota_25pro is not None:
-        settings.quota_25pro = quota_25pro
-        await save_config_to_db("quota_25pro", quota_25pro)
-        updated["quota_25pro"] = quota_25pro
-    if quota_30pro is not None:
-        settings.quota_30pro = quota_30pro
-        await save_config_to_db("quota_30pro", quota_30pro)
-        updated["quota_30pro"] = quota_30pro
     if base_rpm is not None:
         settings.base_rpm = base_rpm
         await save_config_to_db("base_rpm", base_rpm)
@@ -1054,7 +976,7 @@ async def update_config(
         settings.lock_donate = lock_donate
         await save_config_to_db("lock_donate", lock_donate)
         updated["lock_donate"] = lock_donate
-    
+
     # 公告配置
     if announcement_enabled is not None:
         settings.announcement_enabled = announcement_enabled
@@ -1072,48 +994,34 @@ async def update_config(
         settings.announcement_read_seconds = announcement_read_seconds
         await save_config_to_db("announcement_read_seconds", announcement_read_seconds)
         updated["announcement_read_seconds"] = announcement_read_seconds
-    
-    # 全站统计额度配置
-    if stats_quota_flash is not None:
-        settings.stats_quota_flash = stats_quota_flash
-        await save_config_to_db("stats_quota_flash", stats_quota_flash)
-        updated["stats_quota_flash"] = stats_quota_flash
-    if stats_quota_25pro is not None:
-        settings.stats_quota_25pro = stats_quota_25pro
-        await save_config_to_db("stats_quota_25pro", stats_quota_25pro)
-        updated["stats_quota_25pro"] = stats_quota_25pro
-    if stats_quota_30pro is not None:
-        settings.stats_quota_30pro = stats_quota_30pro
-        await save_config_to_db("stats_quota_30pro", stats_quota_30pro)
-        updated["stats_quota_30pro"] = stats_quota_30pro
-    
+
     return {"message": "配置已保存", "updated": updated}
 
 
-# ===== 全站统计（按模型分类）=====
+# ===== 全站统计 =====
 
 @router.get("/stats/global")
 async def get_global_stats(
     user: User = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db)
 ):
-    """获取全站统计（按模型分类）- 带缓存"""
+    """获取全站统计 - 带缓存"""
     # 尝试从缓存获取（缓存5秒）
     cached_stats = cache.get("stats:global")
     if cached_stats:
         return cached_stats
-    
+
     now = datetime.utcnow()
     hour_ago = now - timedelta(hours=1)
     day_ago = now - timedelta(days=1)
-    
+
     # 计算今天的开始时间（UTC 07:00）
     reset_time_utc = now.replace(hour=7, minute=0, second=0, microsecond=0)
     if now < reset_time_utc:
         start_of_day = reset_time_utc - timedelta(days=1)
     else:
         start_of_day = reset_time_utc
-    
+
     # 按模型分类统计（今日）
     model_stats_result = await db.execute(
         select(UsageLog.model, func.count(UsageLog.id).label("count"))
@@ -1122,24 +1030,24 @@ async def get_global_stats(
         .order_by(func.count(UsageLog.id).desc())
     )
     model_stats = [{"model": row[0] or "unknown", "count": row[1]} for row in model_stats_result.all()]
-    
+
     # 分类汇总
     flash_count = sum(s["count"] for s in model_stats if "flash" in s["model"].lower())
     pro_count = sum(s["count"] for s in model_stats if "pro" in s["model"].lower() and "3" not in s["model"])
     tier3_count = sum(s["count"] for s in model_stats if "3" in s["model"])
-    
+
     # 最近1小时请求数
     hour_result = await db.execute(
         select(func.count(UsageLog.id)).where(UsageLog.created_at >= hour_ago)
     )
     hour_requests = hour_result.scalar() or 0
-    
+
     # 今日总请求数
     today_result = await db.execute(
         select(func.count(UsageLog.id)).where(UsageLog.created_at >= start_of_day)
     )
     today_requests = today_result.scalar() or 0
-    
+
     # 今日成功/失败统计
     today_success_result = await db.execute(
         select(func.count(UsageLog.id))
@@ -1148,7 +1056,7 @@ async def get_global_stats(
     )
     today_success = today_success_result.scalar() or 0
     today_failed = today_requests - today_success
-    
+
     # 报错统计（按错误码分类，今日）
     error_stats_result = await db.execute(
         select(UsageLog.status_code, func.count(UsageLog.id).label("count"))
@@ -1158,7 +1066,7 @@ async def get_global_stats(
         .order_by(func.count(UsageLog.id).desc())
     )
     error_by_code = {str(row[0]): row[1] for row in error_stats_result.all()}
-    
+
     # 最近的报错详情（最近10条非200的记录）
     recent_errors_result = await db.execute(
         select(UsageLog, User.username)
@@ -1178,7 +1086,7 @@ async def get_global_stats(
         }
         for log in recent_errors_result.all()
     ]
-    
+
     # 凭证统计
     total_creds = await db.execute(select(func.count(Credential.id)))
     active_creds = await db.execute(
@@ -1190,14 +1098,14 @@ async def get_global_stats(
             Credential.is_active == True
         )
     )
-    
+
     tier3_cred_result = await db.execute(
         select(func.count(Credential.id))
         .where(Credential.model_tier == "3")
         .where(Credential.is_active == True)
     )
     tier3_creds = tier3_cred_result.scalar() or 0
-    
+
     # 公共池中的3.0凭证数量
     public_tier3_result = await db.execute(
         select(func.count(Credential.id))
@@ -1206,7 +1114,7 @@ async def get_global_stats(
         .where(Credential.is_public == True)
     )
     public_tier3_creds = public_tier3_result.scalar() or 0
-    
+
     # 按账号类型统计凭证数量
     pro_creds_result = await db.execute(
         select(func.count(Credential.id))
@@ -1214,109 +1122,32 @@ async def get_global_stats(
         .where(Credential.is_active == True)
     )
     pro_creds = pro_creds_result.scalar() or 0
-    
+
     free_creds_result = await db.execute(
         select(func.count(Credential.id))
         .where(Credential.account_type != "pro")
         .where(Credential.is_active == True)
     )
     free_creds = free_creds_result.scalar() or 0
-    
-    # 3.0 凭证中的 Pro 号和非 Pro 号
-    tier3_pro_result = await db.execute(
-        select(func.count(Credential.id))
-        .where(Credential.model_tier == "3")
-        .where(Credential.account_type == "pro")
-        .where(Credential.is_active == True)
-    )
-    tier3_pro = tier3_pro_result.scalar() or 0
-    tier3_free = tier3_creds - tier3_pro
-    
-    # 全站总额度计算
-    total_count = total_creds.scalar() or 0
-    active_count = active_creds.scalar() or 0
-    public_active_count = public_creds.scalar() or 0
-    
-    # 根据凭证池模式决定配额计算方式
-    pool_mode = settings.credential_pool_mode
-    if pool_mode == "private":
-        # 私有模式：基于所有活跃凭证计算（每个用户只能用自己的）
-        quota_base_count = active_count
-        quota_tier3_count = tier3_creds
-    else:
-        # 共享模式：基于公共池凭证计算
-        quota_base_count = public_active_count
-        quota_tier3_count = public_tier3_creds
-    
-    # 配额计算
-    total_quota_flash = quota_base_count * settings.quota_flash
-    total_quota_25pro = quota_base_count * settings.quota_25pro
-    total_quota_30pro = quota_tier3_count * settings.quota_30pro
-    
-    # 按用户类型统计数量
-    # 总用户数
+
+    # 用户统计
     total_users_result = await db.execute(
         select(func.count(User.id)).where(User.is_active == True)
     )
     total_users = total_users_result.scalar() or 0
-    
-    # 有3.0凭证的用户数（用户拥有至少一个活跃的3.0凭证）
-    users_with_tier3_result = await db.execute(
-        select(func.count(func.distinct(Credential.user_id)))
-        .where(Credential.model_tier == "3")
-        .where(Credential.is_active == True)
-        .where(Credential.user_id.isnot(None))
-    )
-    users_with_tier3 = users_with_tier3_result.scalar() or 0
-    
-    # 有2.5凭证但无3.0凭证的用户数
-    users_with_cred_result = await db.execute(
-        select(func.count(func.distinct(Credential.user_id)))
-        .where(Credential.is_active == True)
-        .where(Credential.user_id.isnot(None))
-    )
-    users_with_any_cred = users_with_cred_result.scalar() or 0
-    users_with_25_only = users_with_any_cred - users_with_tier3
-    
-    # 无凭证用户数
-    users_no_cred = total_users - users_with_any_cred
-    
-    # 2.5凭证数（非3.0的活跃凭证）
-    creds_25_count = active_count - tier3_creds
-    
-    # 按凭证类型分解配额统计（根据模式使用不同的凭证数）
-    if pool_mode == "private":
-        # 私有模式：用所有活跃凭证
-        creds_25_for_quota = creds_25_count
-        creds_30_for_quota = tier3_creds
-    else:
-        # 共享模式：用公共池凭证
-        creds_25_for_quota = public_active_count - public_tier3_creds
-        creds_30_for_quota = public_tier3_creds
-    
-    # 2.5凭证提供的配额（只提供flash和2.5pro）
-    cred25_flash = creds_25_for_quota * settings.quota_flash
-    cred25_25pro = creds_25_for_quota * settings.quota_25pro
-    cred25_30pro = 0  # 2.5凭证不提供3.0配额
-    
-    # 3.0凭证提供的配额（提供全部三种）
-    cred30_flash = creds_30_for_quota * settings.quota_flash
-    cred30_25pro = creds_30_for_quota * settings.quota_25pro
-    cred30_30pro = creds_30_for_quota * settings.quota_30pro
-    
-    # 无凭证用户的配额占位（实际不参与公共池配额计算）
-    no_cred_flash = 0
-    no_cred_25pro = 0
-    no_cred_30pro = 0
-    
+
     # 活跃用户数（最近24小时）
     active_users_result = await db.execute(
         select(func.count(func.distinct(UsageLog.user_id)))
         .where(UsageLog.created_at >= day_ago)
     )
     active_users = active_users_result.scalar() or 0
-    
-    return {
+
+    total_count = total_creds.scalar() or 0
+    active_count = active_creds.scalar() or 0
+    public_active_count = public_creds.scalar() or 0
+
+    result = {
         "requests": {
             "last_hour": hour_requests,
             "today": today_requests,
@@ -1333,39 +1164,13 @@ async def get_global_stats(
             "active": active_count,
             "public": public_active_count,
             "tier_3": tier3_creds,
+            "public_tier_3": public_tier3_creds,
             "pro": pro_creds,
             "free": free_creds,
         },
         "users": {
-            "active_24h": active_users,
-        },
-        "total_quota": {
-            "flash": total_quota_flash,
-            "pro_2.5": total_quota_25pro,
-            "tier_3": total_quota_30pro,
-        },
-        "user_counts": {
             "total": total_users,
-            "no_cred": users_no_cred,
-            "cred_25_only": users_with_25_only,
-            "cred_30": users_with_tier3,
-        },
-        "quota_breakdown": {
-            "no_cred": {
-                "flash": no_cred_flash,
-                "pro_2.5": no_cred_25pro,
-                "tier_3": no_cred_30pro,
-            },
-            "cred_25": {
-                "flash": cred25_flash,
-                "pro_2.5": cred25_25pro,
-                "tier_3": cred25_30pro,
-            },
-            "cred_30": {
-                "flash": cred30_flash,
-                "pro_2.5": cred30_25pro,
-                "tier_3": cred30_30pro,
-            },
+            "active_24h": active_users,
         },
         "models": model_stats[:10],  # Top 10 模型
         "pool_mode": settings.credential_pool_mode,
@@ -1374,10 +1179,10 @@ async def get_global_stats(
             "recent": recent_errors,
         },
     }
-    
+
     # 缓存结果5秒
     cache.set("stats:global", result, ttl=5)
-    
+
     return result
 
 

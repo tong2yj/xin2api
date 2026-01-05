@@ -31,39 +31,11 @@ class Settings(BaseSettings):
     # Gemini
     gemini_api_base: str = "https://generativelanguage.googleapis.com"
     
-    # 用户配额
-    default_daily_quota: int = 100  # 新用户默认配额
-    no_credential_quota: int = 0    # 无有效凭证用户的配额上限（0=无限制，使用用户自己的配额）
-    
-    # 无凭证用户按模型分类的配额（0=禁止使用该类模型）
-    no_cred_quota_flash: int = 100  # 无凭证用户 Flash 配额
-    no_cred_quota_25pro: int = 50   # 无凭证用户 2.5 Pro 配额
-    no_cred_quota_30pro: int = 0    # 无凭证用户 3.0 配额（默认禁止）
-    
-    # 2.5凭证用户的 3.0 模型配额（只有2.5凭证没有3.0凭证的用户）
-    cred25_quota_30pro: int = 0     # 2.5凭证用户 3.0 配额（默认禁止，0=禁止）
-    
-    # 凭证奖励：按模型分类的额度配置（用户上传凭证后获得的奖励）
-    # 2.5凭证奖励 = quota_flash + quota_25pro
-    # 3.0凭证奖励 = quota_flash + quota_25pro + quota_30pro
-    credential_reward_quota: int = 1000  # 兼容旧配置
-    credential_reward_quota_25: int = 1000  # 兼容旧配置（2.5凭证总奖励）
-    credential_reward_quota_30: int = 2000  # 兼容旧配置（3.0凭证总奖励）
-    quota_flash: int = 1000  # Flash模型额度（凭证奖励）
-    quota_25pro: int = 500   # 2.5 Pro模型额度（凭证奖励）
-    quota_30pro: int = 300   # 3.0模型额度（凭证奖励）
-    
-    # 全站总额度计算基数（用于统计页面显示，根据账号类型区分）
-    # Pro 号配额
-    stats_pro_flash: int = 750      # Pro号 Flash 额度
-    stats_pro_premium: int = 250    # Pro号 2.5Pro+3.0 共用额度
-    # 非 Pro 号配额  
-    stats_free_flash: int = 1300    # 非Pro号 Flash 额度
-    stats_free_premium: int = 200   # 非Pro号 2.5Pro+3.0 共用额度
-    # 兼容旧配置项（前端设置页面使用）
-    stats_quota_flash: int = 1000   # 已废弃，保留兼容
-    stats_quota_25pro: int = 250    # 已废弃，保留兼容
-    stats_quota_30pro: int = 200    # 已废弃，保留兼容
+    # 用户配额（统一按次数）
+    default_daily_quota: int = 100  # 新用户默认每日配额（次数）
+
+    # 凭证奖励配额（上传凭证后获得的额外配额次数）
+    credential_reward_quota: int = 1000  # 上传凭证奖励的配额次数
     
     # 速率限制 (RPM - requests per minute)
     base_rpm: int = 5  # 未上传凭证的用户
@@ -76,12 +48,10 @@ class Settings(BaseSettings):
     cd_flash: int = 0   # Flash 模型组 CD（0=无CD）
     cd_pro: int = 4     # Pro 模型组 CD（默认4秒）
     cd_30: int = 4      # 3.0 模型组 CD（默认4秒）
-    
+
     # 注册
     allow_registration: bool = True
-    discord_only_registration: bool = False  # 仅允许通过 Discord Bot 注册
-    discord_oauth_only: bool = False  # 仅允许通过 Discord OAuth 登录注册
-    
+
     # 凭证池模式: 
     # "private" - 只能用自己的凭证
     # "tier3_shared" - 3.0凭证共享池（有3.0凭证的用户可用公共3.0池）
@@ -103,16 +73,16 @@ class Settings(BaseSettings):
     # Google OAuth (Gemini CLI 官方配置)
     google_client_id: str = "681255809395-oo8ft2oprdrnp9e3aqf6av3hmdib135j.apps.googleusercontent.com"
     google_client_secret: str = "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"
+
+    # Antigravity OAuth 配置
+    antigravity_client_id: str = "1071006060591-tmhssin2h21lcre235vtolojh4g403ep.apps.googleusercontent.com"
+    antigravity_client_secret: str = "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"
+    antigravity_api_url: str = "https://daily-cloudcode-pa.sandbox.googleapis.com"
     
     # OpenAI API 反代 (可选)
     openai_api_key: str = ""  # 如果填写，则支持真正的 OpenAI API 反代
     openai_api_base: str = "https://api.openai.com"
-    
-    # Discord OAuth (可选，用于 Discord 登录/注册)
-    discord_client_id: str = ""
-    discord_client_secret: str = ""
-    discord_redirect_uri: str = ""  # 例如: https://你的域名/api/auth/discord/callback
-    
+
     class Config:
         env_file = ".env"
         extra = "ignore"
@@ -123,20 +93,8 @@ settings = Settings()
 # 可持久化的配置项
 PERSISTENT_CONFIG_KEYS = [
     "allow_registration",
-    "discord_only_registration",
-    "discord_oauth_only", 
     "default_daily_quota",
-    "no_credential_quota",
-    "no_cred_quota_flash",
-    "no_cred_quota_25pro",
-    "no_cred_quota_30pro",
-    "cred25_quota_30pro",
     "credential_reward_quota",
-    "credential_reward_quota_25",
-    "credential_reward_quota_30",
-    "quota_flash",
-    "quota_25pro",
-    "quota_30pro",
     "base_rpm",
     "contributor_rpm",
     "credential_pool_mode",

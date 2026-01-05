@@ -87,19 +87,11 @@ async def get_user_from_api_key(request: Request, db: AsyncSession = Depends(get
     body = await request.json()
     model = body.get("model", "gemini-2.5-flash")
     required_tier = CredentialPool.get_required_tier(model)
-    
+
     # 检查用户凭证情况
     from app.models.user import Credential
-    
-    # 统计用户的 2.5 和 3.0 凭证数量
-    cred_25_result = await db.execute(
-        select(func.count(Credential.id))
-        .where(Credential.user_id == user.id)
-        .where(Credential.is_active == True)
-        .where(Credential.model_tier != "3")
-    )
-    cred_25_count = cred_25_result.scalar() or 0
-    
+
+    # 统计用户的 3.0 凭证数量（用于判断是否有3.0访问权限）
     cred_30_result = await db.execute(
         select(func.count(Credential.id))
         .where(Credential.user_id == user.id)
@@ -107,84 +99,28 @@ async def get_user_from_api_key(request: Request, db: AsyncSession = Depends(get
         .where(Credential.model_tier == "3")
     )
     cred_30_count = cred_30_result.scalar() or 0
-    
-    total_cred_count = cred_25_count + cred_30_count
-    has_credential = total_cred_count > 0
 
-    # 计算用户各类模型的配额上限
-    # 优先使用用户设置的按模型配额，0表示使用系统默认
-    if user.quota_flash and user.quota_flash > 0:
-        user_quota_flash = user.quota_flash
-    elif has_credential:
-        user_quota_flash = total_cred_count * settings.quota_flash
-    else:
-        user_quota_flash = settings.no_cred_quota_flash
-    
-    # Pro配额（2.5pro和3.0共享）
-    # 官方规则：无3.0资格200次2.5pro，有3.0资格100次共享，Pro号250次共享
-    if user.quota_25pro and user.quota_25pro > 0:
-        user_quota_pro = user.quota_25pro  # 用户手动设置的配额
-    elif cred_30_count > 0:
-        # 有3.0凭证：使用3.0配额（2.5pro和3.0共享）
-        user_quota_pro = cred_30_count * settings.quota_30pro
-    elif has_credential:
-        # 只有2.5凭证：使用2.5pro配额
-        user_quota_pro = total_cred_count * settings.quota_25pro
-    else:
-        # 无凭证
-        user_quota_pro = settings.no_cred_quota_25pro
-    
-    # 判断用户是否有3.0资格（用于决定是否允许使用3.0模型）
-    has_30_access = cred_30_count > 0 or (user.quota_30pro and user.quota_30pro > 0)
+    # 判断用户是否有3.0访问权限
+    has_30_access = cred_30_count > 0
 
-    # 确定当前请求的模型类别和对应配额
-    if required_tier == "3":
-        if not has_30_access:
-            raise HTTPException(status_code=403, detail="无 3.0 模型使用配额")
-        quota_limit = user_quota_pro
-        # 2.5pro和3.0共享配额，统计所有pro模型（含2.5pro和3.0）
-        model_filter = or_(UsageLog.model.like('%pro%'), UsageLog.model.like('%3%'))
-        quota_name = "Pro模型(2.5pro+3.0共享)"
-    elif "pro" in model.lower():
-        quota_limit = user_quota_pro
-        # 2.5pro和3.0共享配额
-        if has_30_access:
-            model_filter = or_(UsageLog.model.like('%pro%'), UsageLog.model.like('%3%'))
-            quota_name = "Pro模型(2.5pro+3.0共享)"
-        else:
-            model_filter = UsageLog.model.like('%pro%')
-            quota_name = "2.5 Pro模型"
-    else:
-        quota_limit = user_quota_flash
-        # Flash配额：排除pro和3.0模型
-        model_filter = and_(UsageLog.model.notlike('%pro%'), UsageLog.model.notlike('%3%'))
-        quota_name = "Flash模型"
+    # 如果请求3.0模型但没有3.0凭证，拒绝访问
+    if required_tier == "3" and not has_30_access:
+        raise HTTPException(status_code=403, detail="无 3.0 模型使用权限")
 
-    # 检查该类别模型的使用量
-    if quota_limit > 0:
-        model_usage_result = await db.execute(
-            select(func.count(UsageLog.id)).where(
-                UsageLog.user_id == user.id,
-                UsageLog.created_at >= start_of_day,
-                model_filter
-            )
+    # 检查今日总使用次数
+    total_usage_result = await db.execute(
+        select(func.count(UsageLog.id))
+        .where(UsageLog.user_id == user.id)
+        .where(UsageLog.created_at >= start_of_day)
+    )
+    current_usage = total_usage_result.scalar() or 0
+
+    # 检查是否超过配额
+    if current_usage >= user.daily_quota:
+        raise HTTPException(
+            status_code=429,
+            detail=f"已达到每日配额限制 ({current_usage}/{user.daily_quota})"
         )
-        current_usage = model_usage_result.scalar() or 0
-        if current_usage >= quota_limit:
-            raise HTTPException(
-                status_code=429, 
-                detail=f"已达到{quota_name}每日配额限制 ({current_usage}/{quota_limit})"
-            )
-    
-    # 同时检查总配额
-    if has_credential:
-        total_usage_result = await db.execute(
-            select(func.count(UsageLog.id))
-            .where(UsageLog.user_id == user.id)
-            .where(UsageLog.created_at >= start_of_day)
-        )
-        if (total_usage_result.scalar() or 0) >= user.daily_quota:
-            raise HTTPException(status_code=429, detail="已达到今日总配额限制")
     
     return user
 
@@ -206,62 +142,92 @@ async def options_handler():
 
 @router.get("/v1/models")
 async def list_models(request: Request, user: User = Depends(get_user_from_api_key), db: AsyncSession = Depends(get_db)):
-    """列出可用模型 (OpenAI兼容)"""
+    """列出可用模型 (OpenAI兼容) - 统一端点，包含 Gemini 和 Antigravity 模型"""
     from app.models.user import Credential
-    
+
     # 检查是否有可用的 3.0 凭证
     has_tier3_creds = await CredentialPool.has_tier3_credentials(user, db)
-    
+
     has_tier3 = await CredentialPool.has_tier3_credentials(user, db)
-    
+
+    # 检查是否有 Antigravity 凭证
+    result = await db.execute(
+        select(Credential)
+        .where(
+            or_(
+                Credential.user_id == user.id,
+                Credential.is_public == True
+            )
+        )
+        .where(Credential.credential_type == "oauth_antigravity")
+        .where(Credential.is_active == True)
+        .limit(1)
+    )
+    has_antigravity = result.scalar_one_or_none() is not None
+
+    # ========== Gemini CLI 模型 ==========
     # 基础模型 (Gemini 2.5+)
     base_models = [
         "gemini-2.5-pro",
         "gemini-2.5-flash",
     ]
-    
+
     # 只有有 3.0 凭证时才添加 3.0 模型
     if has_tier3:
         base_models.append("gemini-3-pro-preview")
         base_models.append("gemini-3-flash-preview")
-    
+
     # Thinking 后缀
     thinking_suffixes = ["-maxthinking", "-nothinking"]
     # Search 后缀
     search_suffix = "-search"
-    
+
     models = []
     for base in base_models:
         # 基础模型
         models.append({"id": base, "object": "model", "owned_by": "google"})
-        
-        # 假流式模型
-        models.append({"id": f"假流式/{base}", "object": "model", "owned_by": "google"})
-        # 流式抗截断模型
-        models.append({"id": f"流式抗截断/{base}", "object": "model", "owned_by": "google"})
-        
+
         # thinking 变体
         for suffix in thinking_suffixes:
             models.append({"id": f"{base}{suffix}", "object": "model", "owned_by": "google"})
-            models.append({"id": f"假流式/{base}{suffix}", "object": "model", "owned_by": "google"})
-            models.append({"id": f"流式抗截断/{base}{suffix}", "object": "model", "owned_by": "google"})
-        
+
         # search 变体
         models.append({"id": f"{base}{search_suffix}", "object": "model", "owned_by": "google"})
-        models.append({"id": f"假流式/{base}{search_suffix}", "object": "model", "owned_by": "google"})
-        models.append({"id": f"流式抗截断/{base}{search_suffix}", "object": "model", "owned_by": "google"})
-        
+
         # thinking + search 组合
         for suffix in thinking_suffixes:
             combined = f"{suffix}{search_suffix}"
             models.append({"id": f"{base}{combined}", "object": "model", "owned_by": "google"})
-            models.append({"id": f"假流式/{base}{combined}", "object": "model", "owned_by": "google"})
-            models.append({"id": f"流式抗截断/{base}{combined}", "object": "model", "owned_by": "google"})
-    
+
     # Image 模型
     models.append({"id": "gemini-2.5-flash-image", "object": "model", "owned_by": "google"})
-    
-    
+
+    # ========== Antigravity 模型（带 ag- 前缀）==========
+    if has_antigravity:
+        # Gemini 模型（通过 Antigravity）
+        ag_gemini_models = [
+            "ag-gemini-2.5-pro",
+            "ag-gemini-2.5-flash",
+            "ag-gemini-2.5-flash-thinking",
+            "ag-gemini-3-pro-preview",
+            "ag-gemini-3-flash-preview",
+            "ag-gemini-3-pro-low",
+            "ag-gemini-3-pro-high",
+            "ag-gemini-3-pro-image",
+            "ag-gemini-2.5-flash-lite",
+            "ag-gemini-2.5-flash-image",
+        ]
+
+        # Claude 模型（通过 Antigravity）
+        ag_claude_models = [
+            "ag-claude-sonnet-4-5",
+            "ag-claude-sonnet-4-5-thinking",
+            "ag-claude-opus-4-5-thinking",
+        ]
+
+        for model_id in ag_gemini_models + ag_claude_models:
+            models.append({"id": model_id, "object": "model", "owned_by": "antigravity"})
+
     return {"object": "list", "data": models}
 
 
@@ -271,27 +237,37 @@ async def chat_completions(
     user: User = Depends(get_user_from_api_key),
     db: AsyncSession = Depends(get_db)
 ):
-    """Chat Completions (OpenAI兼容)"""
+    """Chat Completions (OpenAI兼容) - 统一端点，支持 Gemini 和 Antigravity"""
     start_time = time.time()
-    
+
     # 获取客户端信息
     client_ip = request.headers.get("X-Forwarded-For", request.client.host if request.client else "unknown").split(",")[0].strip()
     user_agent = request.headers.get("User-Agent", "")[:500]
-    
+
     try:
         body = await request.json()
     except:
         raise HTTPException(status_code=400, detail="无效的JSON请求体")
-    
+
     # 保存请求内容摘要（截断到2000字符）
     request_body_str = json.dumps(body, ensure_ascii=False)[:2000] if body else None
-    
+
     model = body.get("model", "gemini-2.5-flash")
     messages = body.get("messages", [])
     stream = body.get("stream", False)
-    
+
     if not messages:
         raise HTTPException(status_code=400, detail="messages不能为空")
+
+    # 检测模型前缀，判断使用哪个后端
+    # ag- 前缀 = Antigravity 后端
+    # 无前缀 = Gemini CLI 后端
+    if model.startswith("ag-"):
+        # 转发到 Antigravity 处理
+        from app.routers.antigravity import handle_chat_completions_antigravity
+        return await handle_chat_completions_antigravity(request, user, db, body)
+
+    # 以下是原有的 Gemini CLI 处理逻辑
     
     # 检查用户是否参与大锅饭
     user_has_public = await CredentialPool.check_user_has_public_creds(db, user.id)
@@ -406,10 +382,7 @@ async def chat_completions(
                 "created_at": datetime.utcnow().isoformat()
             })
             await notify_stats_update()
-        
-        # 检查是否使用假流式
-        use_fake_streaming = client.is_fake_streaming(model)
-        
+
         try:
             if stream:
                 # 流式模式：使用带重试的流生成器
@@ -480,23 +453,15 @@ async def chat_completions(
                 
                 async def stream_generator_with_retry():
                     nonlocal credential, access_token, project_id, client, tried_credential_ids, last_error
-                    
+
                     for stream_retry in range(max_retries + 1):
                         try:
-                            if use_fake_streaming:
-                                async for chunk in client.chat_completions_fake_stream(
-                                    model=model,
-                                    messages=messages,
-                                    **{k: v for k, v in body.items() if k not in ["model", "messages", "stream"]}
-                                ):
-                                    yield chunk
-                            else:
-                                async for chunk in client.chat_completions_stream(
-                                    model=model,
-                                    messages=messages,
-                                    **{k: v for k, v in body.items() if k not in ["model", "messages", "stream"]}
-                                ):
-                                    yield chunk
+                            async for chunk in client.chat_completions_stream(
+                                model=model,
+                                messages=messages,
+                                **{k: v for k, v in body.items() if k not in ["model", "messages", "stream"]}
+                            ):
+                                yield chunk
                             # 在发送 [DONE] 之前先记录日志，避免客户端关闭连接后日志丢失
                             await log_usage_in_stream(cred_id=credential.id, cred_email=credential.email)
                             yield "data: [DONE]\n\n"

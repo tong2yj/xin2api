@@ -275,6 +275,164 @@ async def log_usage(
 
 # ==================== OpenAI 兼容接口 ====================
 
+async def handle_chat_completions_antigravity(request: Request, user: User, db: AsyncSession, body: dict):
+    """
+    Antigravity 聊天补全处理函数（可被 proxy.py 调用）
+    - 接收已认证的 user 和解析好的 body
+    - 返回 StreamingResponse 或 JSONResponse
+    """
+    start_time = time.time()
+
+    # 1. 获取 Antigravity 凭证
+    result = await db.execute(
+        select(Credential)
+        .where(Credential.user_id == user.id)
+        .where(Credential.credential_type == "oauth_antigravity")
+        .where(Credential.is_active == True)
+        .order_by(Credential.last_used_at.asc().nullsfirst())
+        .limit(1)
+    )
+    credential = result.scalar_one_or_none()
+
+    # 如果用户没有自己的凭证，尝试使用公共池
+    if not credential and settings.credential_pool_mode in ["tier3_shared", "full_shared"]:
+        result = await db.execute(
+            select(Credential)
+            .where(Credential.is_public == True)
+            .where(Credential.credential_type == "oauth_antigravity")
+            .where(Credential.is_active == True)
+            .order_by(Credential.last_used_at.asc().nullsfirst())
+            .limit(1)
+        )
+        credential = result.scalar_one_or_none()
+
+    if not credential:
+        raise HTTPException(status_code=403, detail="没有可用的 Antigravity 凭证，请先上传 Antigravity 专用凭证")
+
+    # 2. 解析请求（移除 ag- 前缀）
+    model = body.get("model", "gemini-2.5-flash")
+    if model.startswith("ag-"):
+        model = model[3:]  # 移除 ag- 前缀
+
+    messages = body.get("messages", [])
+    stream = body.get("stream", False)
+
+    # 3. 检查配额 (管理员无限制)
+    if not user.is_admin:
+        # 检查今日配额
+        now = datetime.utcnow()
+        reset_time_utc = now.replace(hour=7, minute=0, second=0, microsecond=0)
+        if now < reset_time_utc:
+            start_of_day = reset_time_utc - timedelta(days=1)
+        else:
+            start_of_day = reset_time_utc
+
+        # 统计今日使用量
+        result = await db.execute(
+            select(UsageLog)
+            .where(UsageLog.user_id == user.id)
+            .where(UsageLog.created_at >= start_of_day)
+            .where(UsageLog.status_code == 200)
+        )
+        today_logs = result.scalars().all()
+        today_usage = len(today_logs)
+
+        total_quota = user.daily_quota
+        if today_usage >= total_quota:
+            raise HTTPException(status_code=429, detail=f"今日配额已用完 ({today_usage}/{total_quota})")
+
+    # 4. 转换消息格式
+    contents = openai_to_antigravity_contents(messages)
+
+    # 5. 解密凭证
+    access_token = decrypt_credential(credential.api_key)
+    project_id = credential.project_id or "default-project"
+
+    # 6. 构建请求
+    session_id = f"session-{uuid.uuid4().hex}"
+    generation_config = {
+        "temperature": body.get("temperature", 1.0),
+        "topP": body.get("top_p", 0.95),
+        "maxOutputTokens": body.get("max_tokens", 8192),
+        "candidateCount": 1,
+    }
+
+    request_body = build_antigravity_request_body(
+        contents=contents,
+        model=model,
+        project_id=project_id,
+        session_id=session_id,
+        generation_config=generation_config
+    )
+
+    request_id = f"chatcmpl-{int(time.time() * 1000)}"
+
+    try:
+        if stream:
+            # 流式响应
+            lines_gen = send_antigravity_request_stream(access_token, project_id, request_body)
+
+            # 记录成功日志
+            latency_ms = (time.time() - start_time) * 1000
+            await log_usage(db, user, credential, f"ag-{model}", "/v1/chat/completions", 200, latency_ms=latency_ms)
+
+            return StreamingResponse(
+                convert_antigravity_stream_to_openai(lines_gen, f"ag-{model}", request_id),
+                media_type="text/event-stream"
+            )
+        else:
+            # 非流式响应
+            response_data = await send_antigravity_request_no_stream(access_token, project_id, request_body)
+
+            # 提取文本
+            parts = response_data.get("response", {}).get("candidates", [{}])[0].get("content", {}).get("parts", [])
+            content = "".join(part.get("text", "") for part in parts if "text" in part)
+
+            # 提取使用统计
+            usage_metadata = response_data.get("response", {}).get("usageMetadata", {})
+            usage = {
+                "prompt_tokens": usage_metadata.get("promptTokenCount", 0),
+                "completion_tokens": usage_metadata.get("candidatesTokenCount", 0),
+                "total_tokens": usage_metadata.get("totalTokenCount", 0)
+            }
+
+            # 构建 OpenAI 格式响应
+            openai_response = {
+                "id": request_id,
+                "object": "chat.completion",
+                "created": int(time.time()),
+                "model": f"ag-{model}",  # 返回时带上 ag- 前缀
+                "choices": [{
+                    "index": 0,
+                    "message": {
+                        "role": "assistant",
+                        "content": content
+                    },
+                    "finish_reason": "stop"
+                }],
+                "usage": usage
+            }
+
+            # 记录成功日志
+            latency_ms = (time.time() - start_time) * 1000
+            await log_usage(
+                db, user, credential, f"ag-{model}", "/v1/chat/completions", 200,
+                latency_ms=latency_ms,
+                tokens_input=usage["prompt_tokens"],
+                tokens_output=usage["completion_tokens"]
+            )
+
+            return JSONResponse(content=openai_response)
+
+    except Exception as e:
+        # 记录错误日志
+        latency_ms = (time.time() - start_time) * 1000
+        await log_usage(db, user, credential, f"ag-{model}", "/v1/chat/completions", 500,
+                       error_message=str(e), latency_ms=latency_ms)
+
+        raise HTTPException(status_code=500, detail=f"Antigravity API错误: {str(e)}")
+
+
 @router.post("/v1/chat/completions")
 async def antigravity_chat_completions(request: Request, db: AsyncSession = Depends(get_db)):
     """
@@ -314,7 +472,7 @@ async def antigravity_chat_completions(request: Request, db: AsyncSession = Depe
         today_logs = result.scalars().all()
         today_usage = len(today_logs)
 
-        total_quota = user.daily_quota + user.bonus_quota
+        total_quota = user.daily_quota
         if today_usage >= total_quota:
             raise HTTPException(status_code=429, detail=f"今日配额已用完 ({today_usage}/{total_quota})")
 

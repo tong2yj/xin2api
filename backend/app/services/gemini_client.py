@@ -127,9 +127,6 @@ class GeminiClient:
                     if line.startswith("data: "):
                         yield line[6:]
     
-    def is_fake_streaming(self, model: str) -> bool:
-        """检查是否使用假流式"""
-        return model.startswith("假流式/")
     
     async def chat_completions(
         self,
@@ -158,97 +155,7 @@ class GeminiClient:
         
         async for chunk in self.generate_content_stream(gemini_model, contents, generation_config, system_instruction):
             yield self._convert_to_openai_stream(chunk, model)
-    
-    async def chat_completions_fake_stream(
-        self,
-        model: str,
-        messages: list,
-        **kwargs
-    ) -> AsyncGenerator[str, None]:
-        """假流式: 先发心跳，拿到完整响应后一次性输出"""
-        import asyncio
-        
-        contents, system_instruction = self._convert_messages_to_contents(messages)
-        generation_config = self._build_generation_config(model, kwargs)
-        gemini_model = self._map_model_name(model)
-        
-        # 发送初始 chunk（空内容，保持连接）
-        initial_chunk = {
-            "id": "chatcmpl-catiecli",
-            "object": "chat.completion.chunk",
-            "created": 0,
-            "model": model,
-            "choices": [{"index": 0, "delta": {"role": "assistant"}, "finish_reason": None}]
-        }
-        yield f"data: {json.dumps(initial_chunk)}\n\n"
-        
-        # 创建请求任务
-        request_task = asyncio.create_task(
-            self.generate_content(gemini_model, contents, generation_config, system_instruction)
-        )
-        
-        # 每2秒发送心跳，直到请求完成
-        heartbeat_chunk = {
-            "id": "chatcmpl-catiecli",
-            "object": "chat.completion.chunk",
-            "created": 0,
-            "model": model,
-            "choices": [{"index": 0, "delta": {}, "finish_reason": None}]
-        }
-        
-        while not request_task.done():
-            await asyncio.sleep(2)
-            if not request_task.done():
-                yield f"data: {json.dumps(heartbeat_chunk)}\n\n"
-        
-        # 获取完整响应
-        try:
-            result = await request_task
-            content = ""
-            
-            # 内部 API 返回格式是 {"response": {"candidates": ...}}
-            response_data = result.get("response", result)
-            
-            if "candidates" in response_data and response_data["candidates"]:
-                candidate = response_data["candidates"][0]
-                if "content" in candidate and "parts" in candidate["content"]:
-                    for part in candidate["content"]["parts"]:
-                        if "text" in part and not part.get("thought", False):
-                            content += part.get("text", "")
-            
-            # 输出完整内容
-            if content:
-                content_chunk = {
-                    "id": "chatcmpl-catiecli",
-                    "object": "chat.completion.chunk",
-                    "created": 0,
-                    "model": model,
-                    "choices": [{"index": 0, "delta": {"content": content}, "finish_reason": None}]
-                }
-                yield f"data: {json.dumps(content_chunk)}\n\n"
-            
-            # 发送结束标记
-            done_chunk = {
-                "id": "chatcmpl-catiecli",
-                "object": "chat.completion.chunk",
-                "created": 0,
-                "model": model,
-                "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}]
-            }
-            yield f"data: {json.dumps(done_chunk)}\n\n"
-            yield "data: [DONE]\n\n"
-            
-        except Exception as e:
-            error_chunk = {
-                "id": "chatcmpl-catiecli",
-                "object": "chat.completion.chunk",
-                "created": 0,
-                "model": model,
-                "choices": [{"index": 0, "delta": {"content": f"\n\n[Error: {str(e)}]"}, "finish_reason": "stop"}]
-            }
-            yield f"data: {json.dumps(error_chunk)}\n\n"
-            yield "data: [DONE]\n\n"
-    
+
     def _build_generation_config(self, model: str, kwargs: dict) -> dict:
         """构建生成配置（包含 thinking 配置）"""
         generation_config = {}
@@ -381,8 +288,6 @@ class GeminiClient:
     
     def _map_model_name(self, model: str) -> str:
         """映射模型名称"""
-        # 移除前缀（假流式/流式抗截断）
-        prefixes = ["假流式/", "流式抗截断/"]
         for prefix in prefixes:
             if model.startswith(prefix):
                 model = model[len(prefix):]

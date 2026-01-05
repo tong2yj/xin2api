@@ -51,11 +51,7 @@ async def register(data: UserRegister, db: AsyncSession = Depends(get_db)):
     """用户注册"""
     if not settings.allow_registration:
         raise HTTPException(status_code=403, detail="注册已关闭")
-    if settings.discord_only_registration:
-        raise HTTPException(status_code=403, detail="仅允许通过 Discord Bot 注册")
-    if settings.discord_oauth_only:
-        raise HTTPException(status_code=403, detail="仅允许通过 Discord 登录注册，请点击 Discord 登录按钮")
-    
+
     # 检查用户名是否存在
     result = await db.execute(select(User).where(User.username == data.username))
     if result.scalar_one_or_none():
@@ -999,548 +995,44 @@ async def refresh_credential_project_id(
         return {"success": False, "error": f"刷新异常: {str(e)[:50]}", "project_id": None}
 
 
-# ===== Discord Bot API =====
-
-class DiscordRegister(BaseModel):
-    username: str
-    password: str
-    discord_id: str
-    discord_name: str
-
-
-@router.post("/register-discord")
-async def register_from_discord(data: DiscordRegister, db: AsyncSession = Depends(get_db)):
-    """Discord Bot 注册接口"""
-    # 检查 Discord ID 是否已注册
-    result = await db.execute(select(User).where(User.discord_id == data.discord_id))
-    if result.scalar_one_or_none():
-        raise HTTPException(status_code=400, detail="该 Discord 账号已注册")
-    
-    # 检查用户名是否存在
-    result = await db.execute(select(User).where(User.username == data.username.lower()))
-    if result.scalar_one_or_none():
-        raise HTTPException(status_code=400, detail="用户名已存在")
-    
-    # 验证用户名格式
-    if not data.username.isalnum() or len(data.username) < 3 or len(data.username) > 20:
-        raise HTTPException(status_code=400, detail="用户名必须是3-20位字母数字")
-    
-    # 创建用户
-    user = User(
-        username=data.username.lower(),
-        hashed_password=get_password_hash(data.password),
-        discord_id=data.discord_id,
-        discord_name=data.discord_name,
-        daily_quota=settings.default_daily_quota
-    )
-    db.add(user)
-    await db.commit()
-    await db.refresh(user)
-    
-    # 创建 API Key
-    api_key = APIKey(user_id=user.id, key=APIKey.generate_key(), name="Discord")
-    db.add(api_key)
-    await db.commit()
-    
-    return {
-        "message": "注册成功",
-        "username": user.username,
-        "api_key": api_key.key
-    }
-
-
-@router.get("/check-discord/{discord_id}")
-async def check_discord_user(discord_id: str, db: AsyncSession = Depends(get_db)):
-    """检查 Discord 用户是否已注册"""
-    result = await db.execute(select(User).where(User.discord_id == discord_id))
-    user = result.scalar_one_or_none()
-    
-    if user:
-        # 获取 API Key
-        key_result = await db.execute(select(APIKey).where(APIKey.user_id == user.id, APIKey.is_active == True))
-        api_key = key_result.scalar_one_or_none()
-        
-        return {
-            "exists": True,
-            "username": user.username,
-            "api_key": api_key.key if api_key else None
-        }
-    return {"exists": False}
-
-
-@router.get("/discord-key/{discord_id}")
-async def get_discord_user_key(discord_id: str, db: AsyncSession = Depends(get_db)):
-    """获取 Discord 用户的 API Key"""
-    result = await db.execute(select(User).where(User.discord_id == discord_id))
-    user = result.scalar_one_or_none()
-    
-    if not user:
-        raise HTTPException(status_code=404, detail="用户未注册")
-    
-    # 获取 API Key
-    key_result = await db.execute(select(APIKey).where(APIKey.user_id == user.id, APIKey.is_active == True))
-    api_key = key_result.scalar_one_or_none()
-    
-    if not api_key:
-        # 创建新 Key
-        api_key = APIKey(user_id=user.id, key=APIKey.generate_key(), name="Discord")
-        db.add(api_key)
-        await db.commit()
-    
-    # 获取今日用量
-    today = date.today()
-    usage_result = await db.execute(
-        select(func.count(UsageLog.id))
-        .where(UsageLog.user_id == user.id)
-        .where(func.date(UsageLog.created_at) == today)
-    )
-    today_usage = usage_result.scalar() or 0
-    
-    # 计算真实配额
-    from app.models.user import Credential
-    cred_result = await db.execute(
-        select(func.count(Credential.id))
-        .where(Credential.user_id == user.id)
-        .where(Credential.is_active == True)
-    )
-    cred_count = cred_result.scalar() or 0
-    
-    cred_30_result = await db.execute(
-        select(func.count(Credential.id))
-        .where(Credential.user_id == user.id)
-        .where(Credential.is_active == True)
-        .where(Credential.model_tier == "3")
-    )
-    cred_30_count = cred_30_result.scalar() or 0
-    
-    if user.quota_flash and user.quota_flash > 0:
-        quota_flash = user.quota_flash
-    elif cred_count > 0:
-        quota_flash = cred_count * settings.quota_flash
-    else:
-        quota_flash = settings.no_cred_quota_flash
-    
-    if user.quota_25pro and user.quota_25pro > 0:
-        quota_25pro = user.quota_25pro
-    elif cred_count > 0:
-        quota_25pro = cred_count * settings.quota_25pro
-    else:
-        quota_25pro = settings.no_cred_quota_25pro
-    
-    if user.quota_30pro and user.quota_30pro > 0:
-        quota_30pro = user.quota_30pro
-    elif cred_30_count > 0:
-        quota_30pro = cred_30_count * settings.quota_30pro
-    elif cred_count > 0:
-        quota_30pro = settings.cred25_quota_30pro
-    else:
-        quota_30pro = settings.no_cred_quota_30pro
-    
-    total_quota = quota_flash + quota_25pro + quota_30pro
-    
-    return {
-        "username": user.username,
-        "api_key": api_key.key,
-        "daily_quota": total_quota,
-        "today_usage": today_usage
-    }
-
-
-@router.post("/discord-key/{discord_id}/regenerate")
-async def regenerate_discord_user_key(discord_id: str, db: AsyncSession = Depends(get_db)):
-    """重新生成 Discord 用户的 API Key"""
-    result = await db.execute(select(User).where(User.discord_id == discord_id))
-    user = result.scalar_one_or_none()
-    
-    if not user:
-        raise HTTPException(status_code=404, detail="用户未注册")
-    
-    # 获取现有 API Key
-    key_result = await db.execute(select(APIKey).where(APIKey.user_id == user.id, APIKey.is_active == True))
-    api_key = key_result.scalar_one_or_none()
-    
-    if api_key:
-        # 重新生成
-        api_key.key = APIKey.generate_key()
-    else:
-        # 创建新 Key
-        api_key = APIKey(user_id=user.id, key=APIKey.generate_key(), name="Discord")
-        db.add(api_key)
-    
-    await db.commit()
-    
-    return {
-        "username": user.username,
-        "api_key": api_key.key,
-        "message": "API Key 已重新生成"
-    }
-
-
-@router.get("/discord-stats/{discord_id}")
-async def get_discord_user_stats(discord_id: str, db: AsyncSession = Depends(get_db)):
-    """获取 Discord 用户统计"""
-    from app.models.user import Credential
-    
-    result = await db.execute(select(User).where(User.discord_id == discord_id))
-    user = result.scalar_one_or_none()
-    
-    if not user:
-        raise HTTPException(status_code=404, detail="用户未注册")
-    
-    # 今日用量
-    today = date.today()
-    usage_result = await db.execute(
-        select(func.count(UsageLog.id))
-        .where(UsageLog.user_id == user.id)
-        .where(func.date(UsageLog.created_at) == today)
-    )
-    today_usage = usage_result.scalar() or 0
-    
-    # 总请求数
-    total_result = await db.execute(
-        select(func.count(UsageLog.id)).where(UsageLog.user_id == user.id)
-    )
-    total_requests = total_result.scalar() or 0
-    
-    # 凭证数量
-    cred_result = await db.execute(
-        select(func.count(Credential.id))
-        .where(Credential.user_id == user.id)
-        .where(Credential.is_active == True)
-    )
-    credentials_count = cred_result.scalar() or 0
-    
-    # 3.0凭证数量
-    cred_30_result = await db.execute(
-        select(func.count(Credential.id))
-        .where(Credential.user_id == user.id)
-        .where(Credential.is_active == True)
-        .where(Credential.model_tier == "3")
-    )
-    cred_30_count = cred_30_result.scalar() or 0
-    
-    # 计算真实配额
-    if user.quota_flash and user.quota_flash > 0:
-        quota_flash = user.quota_flash
-    elif credentials_count > 0:
-        quota_flash = credentials_count * settings.quota_flash
-    else:
-        quota_flash = settings.no_cred_quota_flash
-    
-    if user.quota_25pro and user.quota_25pro > 0:
-        quota_25pro = user.quota_25pro
-    elif credentials_count > 0:
-        quota_25pro = credentials_count * settings.quota_25pro
-    else:
-        quota_25pro = settings.no_cred_quota_25pro
-    
-    if user.quota_30pro and user.quota_30pro > 0:
-        quota_30pro = user.quota_30pro
-    elif cred_30_count > 0:
-        quota_30pro = cred_30_count * settings.quota_30pro
-    elif credentials_count > 0:
-        quota_30pro = settings.cred25_quota_30pro
-    else:
-        quota_30pro = settings.no_cred_quota_30pro
-    
-    total_quota = quota_flash + quota_25pro + quota_30pro
-    
-    return {
-        "username": user.username,
-        "discord_id": user.discord_id,
-        "discord_name": user.discord_name,
-        "daily_quota": total_quota,
-        "today_usage": today_usage,
-        "total_requests": total_requests,
-        "credentials_count": credentials_count,
-        "is_active": user.is_active,
-        "created_at": user.created_at.isoformat() if user.created_at else None
-    }
-
-
-# ===== Discord OAuth 登录/注册 =====
-
-# 用于防止 code 重复使用的缓存 (code -> timestamp)
-_used_discord_codes: dict = {}
-
-@router.get("/discord/login")
-async def discord_login_url():
-    """获取 Discord OAuth 登录 URL"""
-    if not settings.discord_client_id or not settings.discord_redirect_uri:
-        raise HTTPException(status_code=503, detail="Discord OAuth 未配置")
-    
-    import urllib.parse
-    import secrets
-    
-    # 生成 state 参数防止 CSRF
-    state = secrets.token_urlsafe(16)
-    
-    params = {
-        "client_id": settings.discord_client_id,
-        "redirect_uri": settings.discord_redirect_uri,
-        "response_type": "code",
-        "scope": "identify",
-        "state": state
-    }
-    url = f"https://discord.com/oauth2/authorize?{urllib.parse.urlencode(params)}"
-    return {"url": url, "state": state}
-
-
-@router.get("/discord/callback")
-async def discord_callback(code: str, state: str = None, db: AsyncSession = Depends(get_db)):
-    """Discord OAuth 回调处理"""
-    import httpx
-    import time
-    from fastapi.responses import HTMLResponse
-    
-    if not settings.discord_client_id or not settings.discord_client_secret:
-        raise HTTPException(status_code=503, detail="Discord OAuth 未配置")
-    
-    # 检查 code 是否已被使用（防止浏览器预加载/刷新导致重复请求）
-    current_time = time.time()
-    
-    # 清理过期的 code 记录（超过5分钟的）
-    expired_codes = [c for c, t in _used_discord_codes.items() if current_time - t > 300]
-    for c in expired_codes:
-        _used_discord_codes.pop(c, None)
-    
-    # 检查是否已使用
-    if code in _used_discord_codes:
-        print(f"[Discord OAuth] Code 已被使用，可能是浏览器重复请求", flush=True)
-        # 返回友好的页面，提示用户关闭窗口
-        html = """
-        <!DOCTYPE html>
-        <html>
-        <head><title>请重试</title></head>
-        <body style="font-family: sans-serif; text-align: center; padding: 50px;">
-        <h2>授权码已使用</h2>
-        <p>请关闭此窗口，重新点击 Discord 登录按钮</p>
-        <script>setTimeout(() => window.close(), 3000);</script>
-        </body>
-        </html>
-        """
-        return HTMLResponse(content=html)
-    
-    # 标记 code 为已使用
-    _used_discord_codes[code] = current_time
-    
-    # 1. 用 code 换取 access_token
-    token_url = "https://discord.com/api/oauth2/token"
-    data = {
-        "client_id": settings.discord_client_id,
-        "client_secret": settings.discord_client_secret,
-        "grant_type": "authorization_code",
-        "code": code,
-        "redirect_uri": settings.discord_redirect_uri
-    }
-    
-    async with httpx.AsyncClient() as client:
-        token_resp = await client.post(token_url, data=data)
-        if token_resp.status_code != 200:
-            error_detail = token_resp.text[:200] if token_resp.text else "未知错误"
-            print(f"[Discord OAuth] Token请求失败: {token_resp.status_code} - {error_detail}", flush=True)
-            
-            # 如果是 invalid_grant，从缓存中移除，允许用户重试
-            if "invalid_grant" in error_detail:
-                _used_discord_codes.pop(code, None)
-                html = """
-                <!DOCTYPE html>
-                <html>
-                <head><title>授权失败</title></head>
-                <body style="font-family: sans-serif; text-align: center; padding: 50px;">
-                <h2>授权失败</h2>
-                <p>授权码已过期或无效，请关闭此窗口重新登录</p>
-                <script>setTimeout(() => window.close(), 3000);</script>
-                </body>
-                </html>
-                """
-                return HTMLResponse(content=html)
-            
-            raise HTTPException(status_code=400, detail=f"Discord 授权失败: {error_detail}")
-        token_data = token_resp.json()
-        access_token = token_data.get("access_token")
-        
-        # 2. 获取用户信息
-        user_resp = await client.get(
-            "https://discord.com/api/users/@me",
-            headers={"Authorization": f"Bearer {access_token}"}
-        )
-        if user_resp.status_code != 200:
-            raise HTTPException(status_code=400, detail="获取 Discord 用户信息失败")
-        discord_user = user_resp.json()
-    
-    discord_id = discord_user["id"]
-    discord_name = f"{discord_user['username']}"
-    
-    # 3. 查找或创建用户
-    result = await db.execute(select(User).where(User.discord_id == discord_id))
-    user = result.scalar_one_or_none()
-    
-    if not user:
-        # 新用户注册
-        if not settings.allow_registration:
-            raise HTTPException(status_code=403, detail="注册已关闭")
-        
-        # 使用 Discord 用户名作为站点用户名
-        username = discord_name
-        
-        # 检查用户名是否已存在
-        existing = await db.execute(select(User).where(User.username == username))
-        if existing.scalar_one_or_none():
-            # 如果存在，添加 discord id 的后4位作为后缀
-            username = f"{discord_name}_{discord_id[-4:]}"
-        
-        user = User(
-            username=username,
-            hashed_password="",  # Discord 用户无密码
-            discord_id=discord_id,
-            discord_name=discord_name,
-            daily_quota=settings.default_daily_quota,
-            is_active=True
-        )
-        db.add(user)
-        await db.commit()
-        await db.refresh(user)
-    else:
-        # 用户已存在，检查是否需要更新信息
-        should_commit = False
-        if user.discord_name != discord_name:
-            user.discord_name = discord_name
-            should_commit = True
-
-        # 如果是旧格式的用户名 (discord_...), 尝试更新为新的 Discord 用户名
-        if user.username.startswith("discord_"):
-            new_username = discord_name
-            # 检查新用户名是否已被他人使用
-            existing_check = await db.execute(select(User).where(User.username == new_username, User.id != user.id))
-            if existing_check.scalar_one_or_none():
-                # 如果冲突，添加后缀
-                new_username = f"{discord_name}_{discord_id[-4:]}"
-            
-            if user.username != new_username:
-                # 再次检查，确保后缀版本不冲突
-                existing_check_2 = await db.execute(select(User).where(User.username == new_username, User.id != user.id))
-                if not existing_check_2.scalar_one_or_none():
-                    user.username = new_username
-                    should_commit = True
-
-        if should_commit:
-            await db.commit()
-            await db.refresh(user)
-    
-    if not user.is_active:
-        raise HTTPException(status_code=403, detail="账户已被禁用")
-    
-    # 4. 生成 JWT token
-    jwt_token = create_access_token(data={"sub": user.username})
-    
-    # 5. 返回 HTML 页面，通过 postMessage 传递 token 给前端
-    html = f"""
-    <!DOCTYPE html>
-    <html>
-    <head><title>登录成功</title></head>
-    <body>
-    <script>
-        window.opener.postMessage({{
-            type: 'discord_login',
-            token: '{jwt_token}',
-            user: {{
-                id: {user.id},
-                username: '{user.username}',
-                discord_id: '{user.discord_id}',
-                discord_name: '{discord_name}',
-                is_admin: {'true' if user.is_admin else 'false'}
-            }}
-        }}, '*');
-        window.close();
-    </script>
-    <p>登录成功，正在跳转...</p>
-    </body>
-    </html>
-    """
-    from fastapi.responses import HTMLResponse
-    return HTMLResponse(content=html)
-
-
-@router.get("/discord/config")
-async def get_discord_config():
-    """获取 Discord OAuth 配置状态"""
-    return {
-        "enabled": bool(settings.discord_client_id and settings.discord_client_secret),
-        "client_id": settings.discord_client_id if settings.discord_client_id else None,
-        "discord_oauth_only": settings.discord_oauth_only
-    }
-
-
 @router.get("/my-stats")
-async def get_my_stats(
-    user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
-):
-    """获取当前用户的个人统计信息"""
-    from datetime import datetime, timedelta
+async def get_my_stats(user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    """获取个人统计信息"""
+    from datetime import datetime, date
 
-    # 计算今天的开始时间（UTC 07:00 = 北京时间 15:00）
-    now = datetime.utcnow()
-    reset_time_utc = now.replace(hour=7, minute=0, second=0, microsecond=0)
-    if now < reset_time_utc:
-        start_of_day = reset_time_utc - timedelta(days=1)
-    else:
-        start_of_day = reset_time_utc
+    # 获取用户凭证信息
+    creds_result = await db.execute(
+        select(Credential).where(Credential.user_id == user.id)
+    )
+    creds = creds_result.scalars().all()
+    credentials_count = len(creds)
+    cred_30_count = len([c for c in creds if c.model_tier == "3" and c.is_active])
 
-    # 获取今日所有日志
-    today_logs_result = await db.execute(
+    # 获取今日使用量
+    today = date.today()
+    today_usage_result = await db.execute(
+        select(func.count(UsageLog.id)).where(
+            UsageLog.user_id == user.id,
+            func.date(UsageLog.created_at) == today
+        )
+    )
+    today_usage = today_usage_result.scalar() or 0
+
+    # 获取今日调用日志（最近50条）
+    logs_result = await db.execute(
         select(UsageLog)
-        .where(UsageLog.user_id == user.id)
-        .where(UsageLog.created_at >= start_of_day)
+        .where(
+            UsageLog.user_id == user.id,
+            func.date(UsageLog.created_at) == today
+        )
         .order_by(UsageLog.created_at.desc())
+        .limit(50)
     )
-    today_logs = today_logs_result.scalars().all()
+    logs = logs_result.scalars().all()
 
-    # 统计今日使用量（只统计成功的请求）
-    today_usage = sum(1 for log in today_logs if log.status_code == 200)
-
-    # 计算总配额
-    from app.models.user import Credential
-    cred_result = await db.execute(
-        select(Credential)
-        .where(Credential.user_id == user.id)
-        .where(Credential.is_active == True)
-    )
-    credentials = cred_result.scalars().all()
-    credentials_count = len(credentials)
-    cred_30_count = sum(1 for c in credentials if c.model_tier == "3")
-
-    # 计算真实配额
-    if user.quota_flash and user.quota_flash > 0:
-        quota_flash = user.quota_flash
-    elif credentials_count > 0:
-        quota_flash = credentials_count * settings.quota_flash
-    else:
-        quota_flash = settings.no_cred_quota_flash
-
-    if user.quota_25pro and user.quota_25pro > 0:
-        quota_25pro = user.quota_25pro
-    elif credentials_count > 0:
-        quota_25pro = credentials_count * settings.quota_25pro
-    else:
-        quota_25pro = settings.no_cred_quota_25pro
-
-    if user.quota_30pro and user.quota_30pro > 0:
-        quota_30pro = user.quota_30pro
-    elif cred_30_count > 0:
-        quota_30pro = cred_30_count * settings.quota_30pro
-    else:
-        quota_30pro = 0
-
-    total_quota = quota_flash + quota_25pro + quota_30pro + user.daily_quota + user.bonus_quota
-
-    # 格式化今日日志
-    logs_formatted = []
-    for log in today_logs:
-        logs_formatted.append({
+    today_logs = [
+        {
             "id": log.id,
-            "created_at": log.created_at.isoformat() if log.created_at else None,
             "model": log.model,
             "endpoint": log.endpoint,
             "status_code": log.status_code,
@@ -1548,20 +1040,15 @@ async def get_my_stats(
             "tokens_input": log.tokens_input,
             "tokens_output": log.tokens_output,
             "credential_email": log.credential_email,
-            "error_message": log.error_message
-        })
+            "created_at": log.created_at.isoformat() + "Z" if log.created_at else None
+        }
+        for log in logs
+    ]
 
     return {
+        "total_quota": user.daily_quota,
         "today_usage": today_usage,
-        "total_quota": total_quota,
-        "quota_breakdown": {
-            "flash": quota_flash,
-            "pro_25": quota_25pro,
-            "tier_3": quota_30pro,
-            "daily": user.daily_quota,
-            "bonus": user.bonus_quota
-        },
         "credentials_count": credentials_count,
         "cred_30_count": cred_30_count,
-        "today_logs": logs_formatted
+        "today_logs": today_logs
     }

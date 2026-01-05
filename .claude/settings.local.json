@@ -8,7 +8,26 @@
       "Bash(npm run build)",
       "Bash(python3:*)",
       "Bash(ls:*)",
-      "Bash(cat:*)"
+      "Bash(cat:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push)",
+      "Bash(pip install:*)",
+      "Bash(where:*)",
+      "Bash(npm install)",
+      "Bash(docker-compose down:*)",
+      "Bash(docker-compose build:*)",
+      "Bash(docker-compose up:*)",
+      "Bash(cp:*)",
+      "Bash(netstat:*)",
+      "Bash(findstr:*)",
+      "Bash(taskkill:*)",
+      "Bash(docker-compose ps:*)",
+      "Bash(docker-compose logs:*)",
+      "Bash(curl:*)",
+      "Bash(grep:*)",
+      "Bash(cd:*)",
+      "Bash(docker system prune:*)"
     ]
   }
 }

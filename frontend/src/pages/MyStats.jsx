@@ -90,7 +90,7 @@ export default function MyStats() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                 <div className="bg-gradient-to-br from-blue-600 to-blue-800 p-6 rounded-xl">
                   <h3 className="text-sm text-blue-200 mb-2">总配额</h3>
-                  <p className="text-4xl font-bold">{stats.total_quota}</p>
+                  <p className="text-4xl font-bold">{stats.total_quota.toLocaleString()}</p>
                   <p className="text-sm text-blue-200 mt-2">
                     凭证: {stats.credentials_count} 个
                     {stats.cred_30_count > 0 && ` (含 ${stats.cred_30_count} 个 3.0)`}
@@ -99,9 +99,9 @@ export default function MyStats() {
 
                 <div className="bg-gradient-to-br from-green-600 to-green-800 p-6 rounded-xl">
                   <h3 className="text-sm text-green-200 mb-2">今日已使用</h3>
-                  <p className="text-4xl font-bold">{stats.today_usage}</p>
+                  <p className="text-4xl font-bold">{stats.today_usage.toLocaleString()}</p>
                   <p className="text-sm text-green-200 mt-2">
-                    剩余: {stats.total_quota - stats.today_usage}
+                    剩余: {(stats.total_quota - stats.today_usage).toLocaleString()}
                   </p>
                 </div>
               </div>
@@ -137,23 +137,23 @@ export default function MyStats() {
                 <div className="text-sm text-gray-400 mb-3">配额明细</div>
                 <div className="grid grid-cols-2 md:grid-cols-5 gap-3 text-sm">
                   <div className="bg-cyan-600/20 border border-cyan-600/30 rounded-lg p-3 text-center">
-                    <div className="text-cyan-400 font-bold text-lg">{stats.quota_breakdown.flash}</div>
+                    <div className="text-cyan-400 font-bold text-lg">{stats.quota_breakdown.flash.toLocaleString()}</div>
                     <div className="text-cyan-300 text-xs mt-1">Flash</div>
                   </div>
                   <div className="bg-orange-600/20 border border-orange-600/30 rounded-lg p-3 text-center">
-                    <div className="text-orange-400 font-bold text-lg">{stats.quota_breakdown.pro_25}</div>
+                    <div className="text-orange-400 font-bold text-lg">{stats.quota_breakdown.pro_25.toLocaleString()}</div>
                     <div className="text-orange-300 text-xs mt-1">2.5 Pro</div>
                   </div>
                   <div className="bg-pink-600/20 border border-pink-600/30 rounded-lg p-3 text-center">
-                    <div className="text-pink-400 font-bold text-lg">{stats.quota_breakdown.tier_3}</div>
+                    <div className="text-pink-400 font-bold text-lg">{stats.quota_breakdown.tier_3.toLocaleString()}</div>
                     <div className="text-pink-300 text-xs mt-1">3.0</div>
                   </div>
                   <div className="bg-purple-600/20 border border-purple-600/30 rounded-lg p-3 text-center">
-                    <div className="text-purple-400 font-bold text-lg">{stats.quota_breakdown.daily}</div>
+                    <div className="text-purple-400 font-bold text-lg">{stats.quota_breakdown.daily.toLocaleString()}</div>
                     <div className="text-purple-300 text-xs mt-1">每日额度</div>
                   </div>
                   <div className="bg-yellow-600/20 border border-yellow-600/30 rounded-lg p-3 text-center">
-                    <div className="text-yellow-400 font-bold text-lg">{stats.quota_breakdown.bonus}</div>
+                    <div className="text-yellow-400 font-bold text-lg">{stats.quota_breakdown.bonus.toLocaleString()}</div>
                     <div className="text-yellow-300 text-xs mt-1">奖励额度</div>
                   </div>
                 </div>

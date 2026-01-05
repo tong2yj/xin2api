@@ -33,8 +33,6 @@ export default function Settings() {
     try {
       const formData = new FormData()
       formData.append('allow_registration', config.allow_registration)
-      formData.append('discord_only_registration', config.discord_only_registration)
-      formData.append('discord_oauth_only', config.discord_oauth_only)
       formData.append('no_cred_quota_flash', config.no_cred_quota_flash ?? 100)
       formData.append('no_cred_quota_25pro', config.no_cred_quota_25pro ?? 50)
       formData.append('no_cred_quota_30pro', config.no_cred_quota_30pro ?? 0)
@@ -117,40 +115,6 @@ export default function Settings() {
                 className="sr-only peer"
               />
               <div className="w-11 h-6 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-600"></div>
-            </label>
-          </div>
-
-          {/* 仅 Discord Bot 注册 */}
-          <div className="flex justify-between items-center">
-            <div>
-              <h3 className="font-semibold">仅允许 Discord Bot 注册</h3>
-              <p className="text-gray-400 text-sm">开启后只能通过 Discord Bot 注册，网页注册将被禁用</p>
-            </div>
-            <label className="relative inline-flex items-center cursor-pointer">
-              <input
-                type="checkbox"
-                checked={config?.discord_only_registration || false}
-                onChange={(e) => setConfig({ ...config, discord_only_registration: e.target.checked })}
-                className="sr-only peer"
-              />
-              <div className="w-11 h-6 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-            </label>
-          </div>
-
-          {/* 仅 Discord OAuth 注册 */}
-          <div className="flex justify-between items-center">
-            <div>
-              <h3 className="font-semibold">仅允许 Discord 登录注册</h3>
-              <p className="text-gray-400 text-sm">开启后只能通过网页 Discord 登录注册，普通注册将被禁用</p>
-            </div>
-            <label className="relative inline-flex items-center cursor-pointer">
-              <input
-                type="checkbox"
-                checked={config?.discord_oauth_only || false}
-                onChange={(e) => setConfig({ ...config, discord_oauth_only: e.target.checked })}
-                className="sr-only peer"
-              />
-              <div className="w-11 h-6 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
             </label>
           </div>
 
