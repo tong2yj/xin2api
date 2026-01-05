@@ -40,6 +40,7 @@ class OAuthConfig(BaseModel):
 class CallbackURLRequest(BaseModel):
     callback_url: str
     is_public: bool = False  # 是否捐赠到公共池
+    for_antigravity: bool = False  # 是否用于 Antigravity
 
 
 @router.get("/config")
@@ -66,28 +67,30 @@ async def set_oauth_config(
 async def get_auth_url(
     request: Request,
     get_all_projects: bool = False,
+    for_antigravity: bool = False,  # 新增：是否用于 Antigravity
     user: User = Depends(get_current_user)
 ):
     """获取 OAuth 认证链接（需登录）"""
-    return await _get_auth_url_impl(get_all_projects, user.id if user else None)
+    return await _get_auth_url_impl(get_all_projects, user.id if user else None, for_antigravity)
 
 
 @router.get("/auth-url-public")
-async def get_auth_url_public(get_all_projects: bool = False):
+async def get_auth_url_public(get_all_projects: bool = False, for_antigravity: bool = False):
     """获取 OAuth 认证链接（公开，用于 Discord Bot）"""
-    return await _get_auth_url_impl(get_all_projects, None)
+    return await _get_auth_url_impl(get_all_projects, None, for_antigravity)
 
 
-async def _get_auth_url_impl(get_all_projects: bool, user_id: int = None):
+async def _get_auth_url_impl(get_all_projects: bool, user_id: int = None, for_antigravity: bool = False):
     """获取 OAuth 认证链接实现"""
     if not settings.google_client_id:
         raise HTTPException(status_code=400, detail="未配置 OAuth Client ID")
-    
+
     # 生成 state
     state = secrets.token_urlsafe(32)
     oauth_states[state] = {
         "user_id": user_id,
-        "get_all_projects": get_all_projects
+        "get_all_projects": get_all_projects,
+        "for_antigravity": for_antigravity  # 保存凭证类型标记
     }
     
     # Gemini CLI 官方 OAuth 固定使用 localhost:8080 作为回调
@@ -159,13 +162,17 @@ async def oauth_callback(
             userinfo = userinfo_response.json()
         
         email = userinfo.get("email", "unknown")
-        
+
+        # 确定凭证类型
+        cred_type = "oauth_antigravity" if state_data.get("for_antigravity") else "oauth"
+        cred_name = f"Antigravity - {email}" if state_data.get("for_antigravity") else f"OAuth - {email}"
+
         # 保存凭证
         credential = Credential(
-            name=f"OAuth - {email}",
+            name=cred_name,
             api_key=access_token,  # 这里存储的是 access_token
             refresh_token=refresh_token,
-            credential_type="oauth",
+            credential_type=cred_type,
             email=email
         )
         db.add(credential)
@@ -315,23 +322,28 @@ async def credential_from_callback_url(
             existing.api_key = encrypt_credential(access_token)
             existing.refresh_token = encrypt_credential(refresh_token)
             existing.project_id = project_id
+            # 更新凭证类型
+            existing.credential_type = "oauth_antigravity" if data.for_antigravity else "oauth"
+            existing.name = f"Antigravity - {email}" if data.for_antigravity else f"OAuth - {email}"
             credential = existing
             is_new_credential = False
-            print(f"[凭证更新] 更新现有凭证: {email}", flush=True)
+            print(f"[凭证更新] 更新现有凭证: {email} (类型: {existing.credential_type})", flush=True)
         else:
             # 创建新凭证
+            cred_type = "oauth_antigravity" if data.for_antigravity else "oauth"
+            cred_name = f"Antigravity - {email}" if data.for_antigravity else f"OAuth - {email}"
             credential = Credential(
                 user_id=user.id,
-                name=f"OAuth - {email}",
+                name=cred_name,
                 api_key=encrypt_credential(access_token),
                 refresh_token=encrypt_credential(refresh_token),
                 project_id=project_id,
-                credential_type="oauth",
+                credential_type=cred_type,
                 email=email,
                 is_public=data.is_public
             )
             is_new_credential = True
-            print(f"[凭证新增] 创建新凭证: {email}", flush=True)
+            print(f"[凭证新增] 创建新凭证: {email} (类型: {cred_type})", flush=True)
         
         # 验证凭证是否有效（尝试调用 API）
         is_valid = True

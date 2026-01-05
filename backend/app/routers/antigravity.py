@@ -57,11 +57,13 @@ async def get_user_and_credential_from_api_key(request: Request, db: AsyncSessio
     if not user.is_active:
         raise HTTPException(status_code=403, detail="账户已被禁用")
 
-    # 3. 获取用户的可用凭证
+    # 3. 获取用户的可用 Antigravity 凭证
+    # 只使用 oauth_antigravity 类型的凭证
     # 优先获取用户自己的凭证，如果没有则尝试公共池（根据配置）
     result = await db.execute(
         select(Credential)
         .where(Credential.user_id == user.id)
+        .where(Credential.credential_type == "oauth_antigravity")  # 只查找 Antigravity 凭证
         .where(Credential.is_active == True)
         .order_by(Credential.last_used_at.asc().nullsfirst())
         .limit(1)
@@ -73,6 +75,7 @@ async def get_user_and_credential_from_api_key(request: Request, db: AsyncSessio
         result = await db.execute(
             select(Credential)
             .where(Credential.is_public == True)
+            .where(Credential.credential_type == "oauth_antigravity")  # 只查找 Antigravity 凭证
             .where(Credential.is_active == True)
             .order_by(Credential.last_used_at.asc().nullsfirst())
             .limit(1)
@@ -80,7 +83,7 @@ async def get_user_and_credential_from_api_key(request: Request, db: AsyncSessio
         credential = result.scalar_one_or_none()
 
     if not credential:
-        raise HTTPException(status_code=403, detail="没有可用的凭证，请先上传凭证或联系管理员")
+        raise HTTPException(status_code=403, detail="没有可用的 Antigravity 凭证，请先上传 Antigravity 专用凭证")
 
     return user, credential
 

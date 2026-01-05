@@ -26,7 +26,7 @@ class Settings(BaseSettings):
     
     # 服务
     host: str = "0.0.0.0"
-    port: int = 5001  # 默认端口，Zeabur 会自动设置为 8080
+    port: int = int(os.getenv("PORT", "5001"))  # Zeabur 会通过 PORT 环境变量设置端口
     
     # Gemini
     gemini_api_base: str = "https://generativelanguage.googleapis.com"

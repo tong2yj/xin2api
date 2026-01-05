@@ -21,6 +21,7 @@ export default function OAuth() {
   const [message, setMessage] = useState({ type: '', text: '' })
   const [isDonate, setIsDonate] = useState(true)
   const [forceDonate, setForceDonate] = useState(false)
+  const [forAntigravity, setForAntigravity] = useState(false)  // 新增：是否用于 Antigravity
   
   // 获取强制捐赠配置
   useEffect(() => {
@@ -47,12 +48,15 @@ export default function OAuth() {
     }
   }, [showGuide, countdown])
 
-  const getAuthUrl = async () => {
+  const getAuthUrl = async () =>{
     setLoading(true)
     setMessage({ type: '', text: '' })
     try {
       const res = await api.get('/api/oauth/auth-url', {
-        params: { get_all_projects: false }
+        params: {
+          get_all_projects: false,
+          for_antigravity: forAntigravity  // 传递凭证类型参数
+        }
       })
       setAuthUrl(res.data.auth_url)
       // 显示引导弹窗
@@ -90,10 +94,12 @@ export default function OAuth() {
     try {
       const res = await api.post('/api/oauth/from-callback-url', {
         callback_url: callbackUrl,
-        is_public: isDonate  // 是否捐赠到公共池
+        is_public: isDonate,  // 是否捐赠到公共池
+        for_antigravity: forAntigravity  // 是否用于 Antigravity
       })
       const donateText = res.data.is_public ? '（已上传到公共池 🎉）' : '（私有凭证）'
-      setMessage({ type: 'success', text: `凭证获取成功！邮箱: ${res.data.email} ${donateText}` })
+      const typeText = forAntigravity ? ' [Antigravity]' : ' [Gemini]'
+      setMessage({ type: 'success', text: `凭证获取成功！邮箱: ${res.data.email}${typeText} ${donateText}` })
       setCallbackUrl('')
     } catch (err) {
       console.error('OAuth错误:', JSON.stringify(err.response?.data, null, 2))
@@ -204,13 +210,42 @@ export default function OAuth() {
         {/* 消息提示 */}
         {message.text && (
           <div className={`p-4 rounded-lg border ${
-            message.type === 'success' 
+            message.type === 'success'
               ? 'bg-green-500/10 border-green-500/30 text-green-400'
               : 'bg-red-500/10 border-red-500/30 text-red-400'
           }`}>
             {message.text}
           </div>
         )}
+
+        {/* 凭证类型选择 */}
+        <div className="card p-6">
+          <h2 className="text-lg font-semibold mb-4">选择凭证类型</h2>
+          <div className="grid grid-cols-2 gap-4">
+            <button
+              onClick={() => setForAntigravity(false)}
+              className={`p-4 rounded-lg border-2 transition-all ${
+                !forAntigravity
+                  ? 'border-blue-500 bg-blue-500/10'
+                  : 'border-dark-600 hover:border-dark-500'
+              }`}
+            >
+              <div className="text-lg font-bold mb-2">🤖 Gemini API</div>
+              <div className="text-sm text-gray-400">用于 Gemini 官方 API</div>
+            </button>
+            <button
+              onClick={() => setForAntigravity(true)}
+              className={`p-4 rounded-lg border-2 transition-all ${
+                forAntigravity
+                  ? 'border-purple-500 bg-purple-500/10'
+                  : 'border-dark-600 hover:border-dark-500'
+              }`}
+            >
+              <div className="text-lg font-bold mb-2">🚀 Antigravity</div>
+              <div className="text-sm text-gray-400">用于 Antigravity 反代</div>
+            </button>
+          </div>
+        </div>
 
         {/* 步骤 1: 登录并授权 */}
         <div className="card p-6">

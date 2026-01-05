@@ -347,6 +347,18 @@ export default function Credentials() {
                       
                       {/* 状态标签行 */}
                       <div className="flex items-center gap-2 mb-2 flex-wrap">
+                        {/* 凭证类型标签 */}
+                        {cred.credential_type === 'oauth_antigravity' && (
+                          <span className="text-xs px-2.5 py-1 bg-purple-600 text-white rounded font-medium">
+                            🚀 Antigravity
+                          </span>
+                        )}
+                        {cred.credential_type === 'oauth' && (
+                          <span className="text-xs px-2.5 py-1 bg-blue-600 text-white rounded font-medium">
+                            🤖 Gemini
+                          </span>
+                        )}
+
                         {/* 启用状态 - 绿色实心，失效用红色 */}
                         {cred.is_active ? (
                           <span className="text-xs px-2.5 py-1 bg-green-600 text-white rounded font-medium">
