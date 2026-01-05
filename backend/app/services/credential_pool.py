@@ -376,112 +376,65 @@ class CredentialPool:
     
     @staticmethod
     async def get_available_credential(
-        db: AsyncSession, 
+        db: AsyncSession,
         user_id: int = None,
         user_has_public_creds: bool = False,
         model: str = None,
         exclude_ids: set = None
     ) -> Optional[Credential]:
         """
-        获取一个可用的凭证 (根据模式 + 轮询策略 + 模型等级匹配)
-        
-        模式:
-        - private: 只能用自己的凭证
-        - tier3_shared: 有3.0凭证的用户可用公共3.0池
-        - full_shared: 大锅饭模式（捐赠凭证即可用所有公共池）
-        
+        获取一个可用的凭证 (轮询策略 + 模型等级匹配)
+
+        所有用户都可以使用所有凭证，只通过次数配额限制
+
         模型等级规则:
         - 3.0 模型只能用 3.0 等级的凭证
         - 2.5 模型可以用任何等级的凭证
-        
+
         exclude_ids: 排除的凭证ID集合（用于重试时跳过已失败的凭证）
         """
-        pool_mode = settings.credential_pool_mode
         query = select(Credential).where(Credential.is_active == True)
-        
+
         # 排除没有 project_id 的凭证（没有 project_id 无法调用 API）
         query = query.where(Credential.project_id != None, Credential.project_id != "")
-        
+
         # 排除已尝试过的凭证
         if exclude_ids:
             query = query.where(~Credential.id.in_(exclude_ids))
-        
+
         # 根据模型确定需要的凭证等级
         required_tier = CredentialPool.get_required_tier(model) if model else "2.5"
-        
+
         if required_tier == "3":
             # gemini-3 模型只能用 3 等级凭证
             query = query.where(Credential.model_tier == "3")
         # 2.5 模型可以用任何等级凭证（不添加额外筛选）
-        
-        # 根据模式决定凭证访问规则
-        if pool_mode == "private":
-            # 私有模式：只能用自己的凭证
-            query = query.where(Credential.user_id == user_id)
-        
-        elif pool_mode == "tier3_shared":
-            # 3.0共享模式：
-            # - 请求3.0模型：需要有3.0凭证才能用公共3.0池
-            # - 请求2.5模型：所有用户都可以用公共2.5凭证
-            user_has_tier3 = await CredentialPool.check_user_has_tier3_creds(db, user_id)
-            
-            if required_tier == "3":
-                # 请求3.0模型
-                if user_has_tier3:
-                    # 用户有3.0凭证 → 可用公共3.0池
-                    query = query.where(
-                        or_(
-                            Credential.is_public == True,
-                            Credential.user_id == user_id
-                        )
-                    )
-                else:
-                    # 用户没有3.0凭证 → 只能用自己的凭证
-                    query = query.where(Credential.user_id == user_id)
-            else:
-                # 请求2.5模型 → 所有用户都可以用公共凭证
-                query = query.where(
-                    or_(
-                        Credential.is_public == True,
-                        Credential.user_id == user_id
-                    )
-                )
-        
-        else:  # full_shared (大锅饭模式)
-            if user_has_public_creds:
-                # 用户有贡献，可以用所有公共凭证 + 自己的私有凭证
-                query = query.where(
-                    or_(
-                        Credential.is_public == True,
-                        Credential.user_id == user_id
-                    )
-                )
-            else:
-                # 用户没有贡献，只能用自己的凭证
-                query = query.where(Credential.user_id == user_id)
-        
+
+        # 所有用户都可以使用所有凭证（包括公开和私有的）
+        # 不再根据 user_id 或 is_public 进行筛选
+
         # 确定模型组（用于 CD 筛选）
         model_group = CredentialPool.get_model_group(model) if model else "flash"
         cd_seconds = CredentialPool.get_cd_seconds(model_group)
-        
+
         result = await db.execute(
             query.order_by(Credential.last_used_at.asc().nullsfirst())
         )
         credentials = result.scalars().all()
-        
+
         if not credentials:
             return None
-        
+
         # 筛选不在 CD 中的凭证
         available_credentials = [
-            c for c in credentials 
+            c for c in credentials
             if not CredentialPool.is_credential_in_cd(c, model_group)
         ]
-        
+
         total_count = len(credentials)
         available_count = len(available_credentials)
         in_cd_count = total_count - available_count
-        
+
         if not available_credentials:
             # 所有凭证都在 CD 中，选择第一个（按 last_used_at 排序的）
             credential = credentials[0]
@@ -490,12 +443,12 @@ class CredentialPool:
             # 选择最久未使用的凭证
             credential = available_credentials[0]
             print(f"[CD] 模型组={model_group}, CD={cd_seconds}秒 | 可用{available_count}/{total_count}个, 选择: {credential.email}", flush=True)
-        
+
         # 更新使用时间和计数
         now = datetime.utcnow()
         credential.last_used_at = now
         credential.total_requests += 1
-        
+
         # 更新对应模型组的 CD 时间
         if model_group == "30":
             credential.last_used_30 = now
@@ -503,9 +456,9 @@ class CredentialPool:
             credential.last_used_pro = now
         else:
             credential.last_used_flash = now
-        
+
         await db.commit()
-        
+
         return credential
     
     @staticmethod

@@ -11,6 +11,7 @@ import Register from './pages/Register'
 import Settings from './pages/Settings'
 import Stats from './pages/Stats'
 import MyStats from './pages/MyStats'
+import OpenAIEndpoints from './pages/OpenAIEndpoints'
 
 // 认证上下文
 export const AuthContext = createContext(null)
@@ -94,6 +95,9 @@ function App() {
           } />
           <Route path="/settings" element={
             <ProtectedRoute adminOnly><Settings /></ProtectedRoute>
+          } />
+          <Route path="/openai-endpoints" element={
+            <ProtectedRoute adminOnly><OpenAIEndpoints /></ProtectedRoute>
           } />
           <Route path="/" element={<Navigate to="/dashboard" />} />
         </Routes>

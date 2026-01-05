@@ -292,6 +292,17 @@ export default function Dashboard() {
   const [activeTab, setActiveTab] = useState('stats')
   const apiEndpoint = `${window.location.origin}/v1`
 
+  // 处理URL参数切换标签页
+  useEffect(() => {
+    const tab = searchParams.get('tab')
+    if (tab === 'credentials') {
+      setActiveTab('credentials')
+      fetchMyCredentials()
+    } else if (tab === 'apikey') {
+      setActiveTab('apikey')
+    }
+  }, [searchParams])
+
   // 自动获取 API Key
   useEffect(() => {
     fetchOrCreateKey()

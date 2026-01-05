@@ -13,7 +13,7 @@ import io
 import zipfile
 
 from app.database import get_db
-from app.models.user import User, Credential, UsageLog
+from app.models.user import User, Credential, UsageLog, OpenAIEndpoint
 from app.services.auth import get_current_user, get_current_admin
 from app.services.crypto import encrypt_credential, decrypt_credential
 from app.services.websocket import notify_stats_update
@@ -864,7 +864,6 @@ async def get_config(user: User = Depends(get_current_admin)):
         "cd_pro": settings.cd_pro,
         "cd_30": settings.cd_30,
         "admin_username": settings.admin_username,
-        "credential_pool_mode": settings.credential_pool_mode,
         "force_donate": settings.force_donate,
         "lock_donate": settings.lock_donate,
         "announcement_enabled": settings.announcement_enabled,
@@ -895,7 +894,6 @@ async def get_public_config():
     return {
         "force_donate": settings.force_donate,
         "lock_donate": settings.lock_donate,
-        "credential_pool_mode": settings.credential_pool_mode,
         "base_rpm": settings.base_rpm,
         "contributor_rpm": settings.contributor_rpm,
     }
@@ -912,7 +910,6 @@ async def update_config(
     cd_flash: Optional[int] = Form(None),
     cd_pro: Optional[int] = Form(None),
     cd_30: Optional[int] = Form(None),
-    credential_pool_mode: Optional[str] = Form(None),
     force_donate: Optional[bool] = Form(None),
     lock_donate: Optional[bool] = Form(None),
     announcement_enabled: Optional[bool] = Form(None),
@@ -945,13 +942,6 @@ async def update_config(
         settings.contributor_rpm = contributor_rpm
         await save_config_to_db("contributor_rpm", contributor_rpm)
         updated["contributor_rpm"] = contributor_rpm
-    if credential_pool_mode is not None:
-        if credential_pool_mode in ["private", "tier3_shared", "full_shared"]:
-            settings.credential_pool_mode = credential_pool_mode
-            await save_config_to_db("credential_pool_mode", credential_pool_mode)
-            updated["credential_pool_mode"] = credential_pool_mode
-        else:
-            raise HTTPException(status_code=400, detail="无效的凭证池模式")
     if error_retry_count is not None:
         settings.error_retry_count = error_retry_count
         await save_config_to_db("error_retry_count", error_retry_count)
@@ -1022,19 +1012,19 @@ async def get_global_stats(
     else:
         start_of_day = reset_time_utc
 
-    # 按模型分类统计（今日）
+    # 按模型分类统计（今日）- 获取Top 3
     model_stats_result = await db.execute(
         select(UsageLog.model, func.count(UsageLog.id).label("count"))
         .where(UsageLog.created_at >= start_of_day)
+        .where(UsageLog.model.isnot(None))  # 排除空模型
         .group_by(UsageLog.model)
         .order_by(func.count(UsageLog.id).desc())
+        .limit(10)  # 获取前10个，用于显示
     )
     model_stats = [{"model": row[0] or "unknown", "count": row[1]} for row in model_stats_result.all()]
 
-    # 分类汇总
-    flash_count = sum(s["count"] for s in model_stats if "flash" in s["model"].lower())
-    pro_count = sum(s["count"] for s in model_stats if "pro" in s["model"].lower() and "3" not in s["model"])
-    tier3_count = sum(s["count"] for s in model_stats if "3" in s["model"])
+    # 获取Top 3模型
+    top_3_models = model_stats[:3] if len(model_stats) >= 3 else model_stats
 
     # 最近1小时请求数
     hour_result = await db.execute(
@@ -1153,11 +1143,7 @@ async def get_global_stats(
             "today": today_requests,
             "today_success": today_success,
             "today_failed": today_failed,
-            "by_category": {
-                "flash": flash_count,
-                "pro_2.5": pro_count,
-                "tier_3": tier3_count,
-            },
+            "top_models": top_3_models,  # Top 3 模型统计
         },
         "credentials": {
             "total": total_count,
@@ -1173,7 +1159,6 @@ async def get_global_stats(
             "active_24h": active_users,
         },
         "models": model_stats[:10],  # Top 10 模型
-        "pool_mode": settings.credential_pool_mode,
         "errors": {
             "by_code": error_by_code,
             "recent": recent_errors,
@@ -1318,4 +1303,116 @@ async def get_error_stats(
         "total_pages": (total + page_size - 1) // page_size
     }
 
+
+# ===== OpenAI 端点管理 =====
+
+@router.get("/openai-endpoints")
+async def get_openai_endpoints(
+    user: User = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db)
+):
+    """获取所有 OpenAI 端点列表（仅管理员）"""
+    result = await db.execute(
+        select(OpenAIEndpoint).order_by(OpenAIEndpoint.priority.desc(), OpenAIEndpoint.id)
+    )
+    endpoints = result.scalars().all()
+
+    return [{
+        "id": ep.id,
+        "name": ep.name,
+        "api_key": ep.api_key,
+        "base_url": ep.base_url,
+        "is_active": ep.is_active,
+        "priority": ep.priority,
+        "total_requests": ep.total_requests,
+        "failed_requests": ep.failed_requests,
+        "last_used_at": ep.last_used_at.isoformat() if ep.last_used_at else None,
+        "last_error": ep.last_error,
+        "created_at": ep.created_at.isoformat(),
+    } for ep in endpoints]
+
+
+@router.post("/openai-endpoints")
+async def create_openai_endpoint(
+    name: str = Form(...),
+    api_key: str = Form(...),
+    base_url: str = Form(...),
+    is_active: bool = Form(True),
+    priority: int = Form(0),
+    user: User = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db)
+):
+    """创建新的 OpenAI 端点（仅管理员）"""
+    endpoint = OpenAIEndpoint(
+        name=name,
+        api_key=api_key,
+        base_url=base_url.rstrip('/'),  # 移除末尾斜杠
+        is_active=is_active,
+        priority=priority
+    )
+    db.add(endpoint)
+    await db.commit()
+    await db.refresh(endpoint)
+
+    return {
+        "message": "OpenAI 端点创建成功",
+        "id": endpoint.id
+    }
+
+
+@router.put("/openai-endpoints/{endpoint_id}")
+async def update_openai_endpoint(
+    endpoint_id: int,
+    name: Optional[str] = Form(None),
+    api_key: Optional[str] = Form(None),
+    base_url: Optional[str] = Form(None),
+    is_active: Optional[bool] = Form(None),
+    priority: Optional[int] = Form(None),
+    user: User = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db)
+):
+    """更新 OpenAI 端点（仅管理员）"""
+    result = await db.execute(
+        select(OpenAIEndpoint).where(OpenAIEndpoint.id == endpoint_id)
+    )
+    endpoint = result.scalar_one_or_none()
+
+    if not endpoint:
+        raise HTTPException(status_code=404, detail="端点不存在")
+
+    if name is not None:
+        endpoint.name = name
+    if api_key is not None:
+        endpoint.api_key = api_key
+    if base_url is not None:
+        endpoint.base_url = base_url.rstrip('/')
+    if is_active is not None:
+        endpoint.is_active = is_active
+    if priority is not None:
+        endpoint.priority = priority
+
+    await db.commit()
+
+    return {"message": "端点更新成功"}
+
+
+@router.delete("/openai-endpoints/{endpoint_id}")
+async def delete_openai_endpoint(
+    endpoint_id: int,
+    user: User = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db)
+):
+    """删除 OpenAI 端点（仅管理员）"""
+    result = await db.execute(
+        select(OpenAIEndpoint).where(OpenAIEndpoint.id == endpoint_id)
+    )
+    endpoint = result.scalar_one_or_none()
+
+    if not endpoint:
+        raise HTTPException(status_code=404, detail="端点不存在")
+
+    await db.delete(endpoint)
+    await db.commit()
+
+    return {"message": "端点删除成功"}
 

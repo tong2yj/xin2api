@@ -1,4 +1,4 @@
-import { ArrowLeft, Save, Settings as SettingsIcon } from 'lucide-react'
+import { ArrowLeft, Save, Settings as SettingsIcon, Globe } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import api from '../api'
@@ -33,30 +33,20 @@ export default function Settings() {
     try {
       const formData = new FormData()
       formData.append('allow_registration', config.allow_registration)
-      formData.append('no_cred_quota_flash', config.no_cred_quota_flash ?? 100)
-      formData.append('no_cred_quota_25pro', config.no_cred_quota_25pro ?? 50)
-      formData.append('no_cred_quota_30pro', config.no_cred_quota_30pro ?? 0)
-      formData.append('cred25_quota_30pro', config.cred25_quota_30pro ?? 0)
-      formData.append('credential_reward_quota', config.credential_reward_quota)
-      formData.append('quota_flash', config.quota_flash ?? 1000)
-      formData.append('quota_25pro', config.quota_25pro ?? 500)
-      formData.append('quota_30pro', config.quota_30pro ?? 300)
+      formData.append('default_daily_quota', config.default_daily_quota ?? 100)
+      formData.append('credential_reward_quota', config.credential_reward_quota ?? 1500)
       formData.append('base_rpm', config.base_rpm)
       formData.append('contributor_rpm', config.contributor_rpm)
       formData.append('error_retry_count', config.error_retry_count)
       formData.append('cd_flash', config.cd_flash ?? 0)
       formData.append('cd_pro', config.cd_pro ?? 4)
       formData.append('cd_30', config.cd_30 ?? 4)
-      formData.append('credential_pool_mode', config.credential_pool_mode)
       formData.append('force_donate', config.force_donate)
       formData.append('lock_donate', config.lock_donate)
       formData.append('announcement_enabled', config.announcement_enabled)
       formData.append('announcement_title', config.announcement_title || '')
       formData.append('announcement_content', config.announcement_content || '')
       formData.append('announcement_read_seconds', config.announcement_read_seconds || 5)
-      formData.append('stats_quota_flash', config.stats_quota_flash ?? 0)
-      formData.append('stats_quota_25pro', config.stats_quota_25pro ?? 0)
-      formData.append('stats_quota_30pro', config.stats_quota_30pro ?? 0)
       
       await api.post('/api/manage/config', formData)
       setMessage({ type: 'success', text: '配置已保存！' })
@@ -118,165 +108,34 @@ export default function Settings() {
             </label>
           </div>
 
-          {/* 无凭证用户按模型配额 */}
+          {/* 默认每日配额 */}
           <div>
-            <h3 className="font-semibold mb-2">无凭证用户按模型配额 🔒</h3>
-            <p className="text-gray-400 text-sm mb-3">无凭证用户各类模型的每日配额（0 = 禁止使用该类模型）</p>
-            <div className="grid grid-cols-3 gap-4">
-              <div>
-                <label className="text-sm text-gray-400 mb-1 block">Flash 配额</label>
-                <input
-                  type="number"
-                  value={config?.no_cred_quota_flash ?? ''}
-                  onChange={(e) => setConfig({ ...config, no_cred_quota_flash: e.target.value === '' ? '' : parseInt(e.target.value) })}
-                  className="w-full bg-gray-700 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-cyan-500"
-                />
-              </div>
-              <div>
-                <label className="text-sm text-gray-400 mb-1 block">2.5 Pro 配额</label>
-                <input
-                  type="number"
-                  value={config?.no_cred_quota_25pro ?? ''}
-                  onChange={(e) => setConfig({ ...config, no_cred_quota_25pro: e.target.value === '' ? '' : parseInt(e.target.value) })}
-                  className="w-full bg-gray-700 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-orange-500"
-                />
-              </div>
-              <div>
-                <label className="text-sm text-gray-400 mb-1 block">3.0 配额</label>
-                <input
-                  type="number"
-                  value={config?.no_cred_quota_30pro ?? ''}
-                  onChange={(e) => setConfig({ ...config, no_cred_quota_30pro: e.target.value === '' ? '' : parseInt(e.target.value) })}
-                  className="w-full bg-gray-700 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-pink-500"
-                />
-              </div>
-            </div>
-            <p className="text-gray-500 text-sm mt-2">
-              💡 设为 0 表示禁止无凭证用户使用该类模型
-            </p>
-          </div>
-
-          {/* 2.5凭证用户的3.0配额 */}
-          <div>
-            <h3 className="font-semibold mb-2">2.5凭证用户 3.0 配额 🎯</h3>
-            <p className="text-gray-400 text-sm mb-3">只有2.5凭证（无3.0凭证）的用户可使用的3.0模型配额（0 = 禁止）</p>
+            <h3 className="font-semibold mb-2">默认每日配额 🎯</h3>
+            <p className="text-gray-400 text-sm mb-3">新注册用户的默认每日请求次数配额</p>
             <input
               type="number"
-              value={config?.cred25_quota_30pro ?? ''}
-              onChange={(e) => setConfig({ ...config, cred25_quota_30pro: e.target.value === '' ? '' : parseInt(e.target.value) })}
+              value={config?.default_daily_quota ?? ''}
+              onChange={(e) => setConfig({ ...config, default_daily_quota: e.target.value === '' ? '' : parseInt(e.target.value) })}
               className="w-full bg-gray-700 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500"
             />
             <p className="text-gray-500 text-sm mt-2">
-              💡 允许2.5凭证用户体验3.0模型，设为0则只有3.0凭证用户可用
+              💡 建议设置为 100-500 次/天
             </p>
           </div>
 
-          {/* 全站统计额度配置 */}
+          {/* 凭证奖励配额 */}
           <div>
-            <h3 className="font-semibold mb-2">全站统计额度 📊</h3>
-            <p className="text-gray-400 text-sm mb-3">统计页面显示的每个凭证贡献的额度基数</p>
-            <div className="grid grid-cols-3 gap-4">
-              <div>
-                <label className="text-sm text-gray-400 mb-1 block">Flash 额度/凭证</label>
-                <input
-                  type="number"
-                  value={config?.stats_quota_flash ?? ''}
-                  onChange={(e) => setConfig({ ...config, stats_quota_flash: e.target.value === '' ? '' : parseInt(e.target.value) })}
-                  className="w-full bg-gray-700 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-cyan-500"
-                />
-              </div>
-              <div>
-                <label className="text-sm text-gray-400 mb-1 block">2.5 Pro 额度/凭证</label>
-                <input
-                  type="number"
-                  value={config?.stats_quota_25pro ?? ''}
-                  onChange={(e) => setConfig({ ...config, stats_quota_25pro: e.target.value === '' ? '' : parseInt(e.target.value) })}
-                  className="w-full bg-gray-700 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-orange-500"
-                />
-              </div>
-              <div>
-                <label className="text-sm text-gray-400 mb-1 block">3.0 额度/凭证</label>
-                <input
-                  type="number"
-                  value={config?.stats_quota_30pro ?? ''}
-                  onChange={(e) => setConfig({ ...config, stats_quota_30pro: e.target.value === '' ? '' : parseInt(e.target.value) })}
-                  className="w-full bg-gray-700 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-pink-500"
-                />
-              </div>
-            </div>
-            <p className="text-gray-500 text-sm mt-2">
-              💡 统计页显示: Flash={config?.stats_quota_flash || 1000}×活跃凭证数, 2.5Pro={config?.stats_quota_25pro || 250}×活跃凭证数, 3.0={config?.stats_quota_30pro || 200}×3.0凭证数
-            </p>
-          </div>
-
-          {/* 凭证奖励 - 按模型分类 */}
-          <div>
-            <h3 className="font-semibold mb-2">凭证上传奖励额度 🎁</h3>
-            <p className="text-gray-400 text-sm mb-3">按模型分类的额度配置，2.5凭证=Flash+2.5Pro，3.0凭证=Flash+2.5Pro+3.0</p>
-            <div className="grid grid-cols-3 gap-4">
-              <div>
-                <label className="text-sm text-gray-400 mb-1 block">Flash 额度</label>
-                <input
-                  type="number"
-                  value={config?.quota_flash ?? ''}
-                  onChange={(e) => setConfig({ ...config, quota_flash: e.target.value === '' ? '' : parseInt(e.target.value) })}
-                  className="w-full bg-gray-700 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-cyan-500"
-                />
-              </div>
-              <div>
-                <label className="text-sm text-gray-400 mb-1 block">2.5 Pro 额度</label>
-                <input
-                  type="number"
-                  value={config?.quota_25pro ?? ''}
-                  onChange={(e) => setConfig({ ...config, quota_25pro: e.target.value === '' ? '' : parseInt(e.target.value) })}
-                  className="w-full bg-gray-700 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-orange-500"
-                />
-              </div>
-              <div>
-                <label className="text-sm text-gray-400 mb-1 block">3.0 额度</label>
-                <input
-                  type="number"
-                  value={config?.quota_30pro ?? ''}
-                  onChange={(e) => setConfig({ ...config, quota_30pro: e.target.value === '' ? '' : parseInt(e.target.value) })}
-                  className="w-full bg-gray-700 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-pink-500"
-                />
-              </div>
-            </div>
+            <h3 className="font-semibold mb-2">凭证上传奖励配额 🎁</h3>
+            <p className="text-gray-400 text-sm mb-3">用户每上传一个有效凭证获得的额外配额</p>
+            <input
+              type="number"
+              value={config?.credential_reward_quota ?? ''}
+              onChange={(e) => setConfig({ ...config, credential_reward_quota: e.target.value === '' ? '' : parseInt(e.target.value) })}
+              className="w-full bg-gray-700 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-green-500"
+            />
             <p className="text-green-400 text-sm mt-2">
-              💡 2.5凭证 +{(config?.quota_flash ?? 1000) + (config?.quota_25pro ?? 500)} | 3.0凭证 +{(config?.quota_flash ?? 1000) + (config?.quota_25pro ?? 500) + (config?.quota_30pro ?? 300)}
+              💡 例如设置为 1500，上传1个凭证后总配额 = 默认配额 + 1500
             </p>
-          </div>
-
-          {/* 凭证池模式 */}
-          <div>
-            <h3 className="font-semibold mb-2">凭证池模式 🏊</h3>
-            <p className="text-gray-400 text-sm mb-3">控制用户如何共享凭证</p>
-            <select
-              value={config?.credential_pool_mode || 'full_shared'}
-              onChange={(e) => setConfig({ ...config, credential_pool_mode: e.target.value })}
-              className="w-full bg-gray-700 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-purple-500"
-            >
-              <option value="private">🔒 私有模式 - 只能用自己的凭证</option>
-              <option value="tier3_shared">⚡ 3.0小锅饭 - 适合凭证较少时</option>
-              <option value="full_shared">🍲 大锅饭 - 适合凭证较多时</option>
-            </select>
-            <div className="mt-2 text-sm space-y-1">
-              {config?.credential_pool_mode === 'private' && (
-                <p className="text-yellow-400">⚠️ 用户只能使用自己上传的凭证</p>
-              )}
-              {config?.credential_pool_mode === 'tier3_shared' && (
-                <>
-                  <p className="text-blue-400">💎 有3.0凭证 → 可用公共3.0池 + 自己的</p>
-                  <p className="text-cyan-400">📘 无3.0凭证 → 可用公共2.5凭证</p>
-                </>
-              )}
-              {config?.credential_pool_mode === 'full_shared' && (
-                <>
-                  <p className="text-green-400">🎉 上传凭证后可使用所有公共凭证（2.5+3.0）</p>
-                  <p className="text-gray-400">🚫 未上传只能用自己的凭证</p>
-                </>
-              )}
-            </div>
           </div>
 
           {/* 强制公开 */}
@@ -415,7 +274,7 @@ export default function Settings() {
                 <div className="w-11 h-6 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-600"></div>
               </label>
             </div>
-            
+
             {config?.announcement_enabled && (
               <div className="space-y-4 bg-gray-700/30 rounded-lg p-4">
                 <div>
@@ -463,6 +322,27 @@ export default function Settings() {
             >
               <Save size={18} />
               {saving ? '保存中...' : '保存配置'}
+            </button>
+          </div>
+        </div>
+
+        {/* OpenAI 端点管理入口 */}
+        <div className="mt-6 bg-blue-900/20 border border-blue-600/30 rounded-lg p-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h4 className="text-blue-400 font-semibold mb-1 flex items-center gap-2">
+                <Globe size={18} />
+                OpenAI 端点管理
+              </h4>
+              <p className="text-blue-200/80 text-sm">
+                配置 OpenAI 兼容的 API 端点（DeepSeek、通义千问等）用于反代给用户
+              </p>
+            </div>
+            <button
+              onClick={() => navigate('/openai-endpoints')}
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg font-semibold text-sm"
+            >
+              管理端点
             </button>
           </div>
         </div>

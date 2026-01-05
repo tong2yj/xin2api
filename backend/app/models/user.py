@@ -111,8 +111,27 @@ class Credential(Base):
 class SystemConfig(Base):
     """系统配置表（持久化存储）"""
     __tablename__ = "system_config"
-    
+
     id = Column(Integer, primary_key=True, index=True)
     key = Column(String(100), unique=True, index=True, nullable=False)
     value = Column(Text, nullable=True)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class OpenAIEndpoint(Base):
+    """OpenAI 兼容端点管理表"""
+    __tablename__ = "openai_endpoints"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(100), nullable=False)  # 端点名称（如：DeepSeek、通义千问等）
+    api_key = Column(Text, nullable=False)  # API Key
+    base_url = Column(String(500), nullable=False)  # API Base URL
+    is_active = Column(Boolean, default=True)  # 是否启用
+    priority = Column(Integer, default=0)  # 优先级（数字越大优先级越高）
+    total_requests = Column(Integer, default=0)  # 总请求数
+    failed_requests = Column(Integer, default=0)  # 失败请求数
+    last_used_at = Column(DateTime, nullable=True)  # 最后使用时间
+    last_error = Column(Text, nullable=True)  # 最后错误信息
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+

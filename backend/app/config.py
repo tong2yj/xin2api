@@ -52,15 +52,9 @@ class Settings(BaseSettings):
     # 注册
     allow_registration: bool = True
 
-    # 凭证池模式: 
-    # "private" - 只能用自己的凭证
-    # "tier3_shared" - 3.0凭证共享池（有3.0凭证的用户可用公共3.0池）
-    # "full_shared" - 大锅饭模式（捐赠凭证即可用所有公共池）
-    credential_pool_mode: str = "full_shared"
-    
     # 强制捐赠：上传凭证时强制设为公开
     force_donate: bool = False
-    
+
     # 锁定捐赠：不允许取消捐赠（除非凭证失效）
     lock_donate: bool = False
     
@@ -97,7 +91,6 @@ PERSISTENT_CONFIG_KEYS = [
     "credential_reward_quota",
     "base_rpm",
     "contributor_rpm",
-    "credential_pool_mode",
     "force_donate",
     "lock_donate",
     "error_retry_count",

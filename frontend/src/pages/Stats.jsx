@@ -180,75 +180,33 @@ export default function Stats() {
               </div>
             </div>
 
-            {/* 按模型分类 - 请求数/总额度 */}
+            {/* Top 3 模型统计 */}
             <div className="grid grid-cols-3 gap-4 mb-4">
-              <div className="bg-cyan-600/20 border border-cyan-600/30 rounded-lg p-4 text-center">
-                <div className="text-2xl font-bold text-cyan-400">
-                  {globalStats.requests.by_category.flash}
-                  <span className="text-lg text-cyan-300">/{globalStats.total_quota?.flash ?? '-'}</span>
+              {globalStats.requests.top_models && globalStats.requests.top_models.length > 0 ? (
+                globalStats.requests.top_models.map((modelStat, index) => {
+                  const colors = [
+                    { bg: 'bg-cyan-600/20', border: 'border-cyan-600/30', text: 'text-cyan-400', label: 'text-cyan-300' },
+                    { bg: 'bg-orange-600/20', border: 'border-orange-600/30', text: 'text-orange-400', label: 'text-orange-300' },
+                    { bg: 'bg-pink-600/20', border: 'border-pink-600/30', text: 'text-pink-400', label: 'text-pink-300' }
+                  ]
+                  const color = colors[index] || colors[2]
+                  return (
+                    <div key={index} className={`${color.bg} border ${color.border} rounded-lg p-4 text-center`}>
+                      <div className={`text-2xl font-bold ${color.text}`}>
+                        {modelStat.count}
+                      </div>
+                      <div className={`text-sm ${color.label} mt-1 truncate`} title={modelStat.model}>
+                        {modelStat.model}
+                      </div>
+                    </div>
+                  )
+                })
+              ) : (
+                <div className="col-span-3 text-center text-gray-500 py-4">
+                  暂无模型调用数据
                 </div>
-                <div className="text-sm text-cyan-300">Flash 请求</div>
-              </div>
-              <div className="bg-orange-600/20 border border-orange-600/30 rounded-lg p-4 text-center">
-                <div className="text-2xl font-bold text-orange-400">
-                  {globalStats.requests.by_category['pro_2.5']}
-                  <span className="text-lg text-orange-300">/{globalStats.total_quota?.['pro_2.5'] ?? '-'}</span>
-                </div>
-                <div className="text-sm text-orange-300">2.5 Pro 请求</div>
-              </div>
-              <div className="bg-pink-600/20 border border-pink-600/30 rounded-lg p-4 text-center">
-                <div className="text-2xl font-bold text-pink-400">
-                  {globalStats.requests.by_category.tier_3}
-                  <span className="text-lg text-pink-300">/{globalStats.total_quota?.tier_3 ?? '-'}</span>
-                </div>
-                <div className="text-sm text-pink-300">3.0 请求</div>
-              </div>
+              )}
             </div>
-
-            {/* 按用户类型的配额分解 */}
-            {globalStats.quota_breakdown && (
-              <div className="bg-gray-700/30 rounded-lg p-4 mb-4">
-                <div className="text-sm text-gray-400 mb-3">📊 按用户类型配额分解</div>
-                <div className="grid grid-cols-3 gap-3 text-sm mb-3">
-                  <div className="bg-gray-600/30 rounded p-2">
-                    <div className="text-gray-400 text-xs mb-1">🔒 无凭证用户 ({globalStats.user_counts?.no_cred ?? 0}人)</div>
-                    <div className="flex justify-between">
-                      <span className="text-cyan-300">{globalStats.quota_breakdown?.no_cred?.flash ?? 0}</span>
-                      <span className="text-orange-300">{globalStats.quota_breakdown?.no_cred?.['pro_2.5'] ?? 0}</span>
-                      <span className="text-pink-300">{globalStats.quota_breakdown?.no_cred?.tier_3 ?? 0}</span>
-                    </div>
-                  </div>
-                  <div className="bg-gray-600/30 rounded p-2">
-                    <div className="text-gray-400 text-xs mb-1">📘 2.5凭证用户 ({globalStats.user_counts?.cred_25_only ?? 0}人)</div>
-                    <div className="flex justify-between">
-                      <span className="text-cyan-300">{globalStats.quota_breakdown?.cred_25?.flash ?? 0}</span>
-                      <span className="text-orange-300">{globalStats.quota_breakdown?.cred_25?.['pro_2.5'] ?? 0}</span>
-                      <span className="text-pink-300">{globalStats.quota_breakdown?.cred_25?.tier_3 ?? 0}</span>
-                    </div>
-                  </div>
-                  <div className="bg-gray-600/30 rounded p-2">
-                    <div className="text-gray-400 text-xs mb-1">💎 3.0凭证用户 ({globalStats.user_counts?.cred_30 ?? 0}人)</div>
-                    <div className="flex justify-between">
-                      <span className="text-cyan-300">{globalStats.quota_breakdown?.cred_30?.flash ?? 0}</span>
-                      <span className="text-orange-300">{globalStats.quota_breakdown?.cred_30?.['pro_2.5'] ?? 0}</span>
-                      <span className="text-pink-300">{globalStats.quota_breakdown?.cred_30?.tier_3 ?? 0}</span>
-                    </div>
-                  </div>
-                </div>
-                <div className="text-center border-t border-gray-600 pt-3">
-                  <span className="text-gray-400">总配额: </span>
-                  <span className="text-cyan-400">{globalStats.total_quota?.flash ?? 0}</span>
-                  <span className="text-gray-500"> + </span>
-                  <span className="text-orange-400">{globalStats.total_quota?.['pro_2.5'] ?? 0}</span>
-                  <span className="text-gray-500"> + </span>
-                  <span className="text-pink-400">{globalStats.total_quota?.tier_3 ?? 0}</span>
-                  <span className="text-gray-500"> = </span>
-                  <span className="text-xl font-bold text-green-400">
-                    {(globalStats.total_quota?.flash ?? 0) + (globalStats.total_quota?.['pro_2.5'] ?? 0) + (globalStats.total_quota?.tier_3 ?? 0)}
-                  </span>
-                </div>
-              </div>
-            )}
 
             {/* 凭证状态 */}
             <div className="flex items-center gap-4 text-sm text-gray-400">

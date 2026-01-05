@@ -8,7 +8,7 @@ import json
 import time
 
 from app.database import get_db, async_session
-from app.models.user import User, UsageLog
+from app.models.user import User, UsageLog, OpenAIEndpoint
 from app.services.auth import get_user_by_api_key
 from app.services.credential_pool import CredentialPool
 from app.services.gemini_client import GeminiClient
@@ -16,6 +16,7 @@ from app.services.websocket import notify_log_update, notify_stats_update
 from app.services.error_classifier import classify_error_simple, ErrorType
 from app.config import settings
 import re
+import httpx
 
 router = APIRouter(tags=["API代理"])
 
@@ -59,21 +60,24 @@ async def get_user_from_api_key(request: Request, db: AsyncSession = Depends(get
     # 4. 从查询参数获取
     if not api_key:
         api_key = request.query_params.get("key")
-    
+
     if not api_key:
+        print(f"[Auth] 未提供API Key")
         raise HTTPException(status_code=401, detail="未提供API Key")
-    
+
     user = await get_user_by_api_key(db, api_key)
     if not user:
+        print(f"[Auth] 无效的API Key: {api_key[:10]}...")
         raise HTTPException(status_code=401, detail="无效的API Key")
-    
+
     if not user.is_active:
+        print(f"[Auth] 账户已被禁用: {user.username}")
         raise HTTPException(status_code=403, detail="账户已被禁用")
-    
+
     # GET 请求（如 /v1/models）不需要检查配额
     if request.method == "GET":
         return user
-    
+
     # 检查配额
     # 配额在北京时间 15:00 (UTC 07:00) 重置
     now = datetime.utcnow()
@@ -86,26 +90,11 @@ async def get_user_from_api_key(request: Request, db: AsyncSession = Depends(get
     # 获取请求的模型
     body = await request.json()
     model = body.get("model", "gemini-2.5-flash")
-    required_tier = CredentialPool.get_required_tier(model)
 
-    # 检查用户凭证情况
-    from app.models.user import Credential
+    print(f"[Auth] User: {user.username}, Model: {model}, Quota: {user.daily_quota}")
 
-    # 统计用户的 3.0 凭证数量（用于判断是否有3.0访问权限）
-    cred_30_result = await db.execute(
-        select(func.count(Credential.id))
-        .where(Credential.user_id == user.id)
-        .where(Credential.is_active == True)
-        .where(Credential.model_tier == "3")
-    )
-    cred_30_count = cred_30_result.scalar() or 0
-
-    # 判断用户是否有3.0访问权限
-    has_30_access = cred_30_count > 0
-
-    # 如果请求3.0模型但没有3.0凭证，拒绝访问
-    if required_tier == "3" and not has_30_access:
-        raise HTTPException(status_code=403, detail="无 3.0 模型使用权限")
+    # 所有用户都可以使用所有模型，不再检查凭证等级限制
+    # 只通过次数配额来限制使用
 
     # 检查今日总使用次数
     total_usage_result = await db.execute(
@@ -117,17 +106,195 @@ async def get_user_from_api_key(request: Request, db: AsyncSession = Depends(get
 
     # 检查是否超过配额
     if current_usage >= user.daily_quota:
+        print(f"[Auth] 配额已用尽: {user.username}, {current_usage}/{user.daily_quota}")
         raise HTTPException(
             status_code=429,
             detail=f"已达到每日配额限制 ({current_usage}/{user.daily_quota})"
         )
-    
+
+    print(f"[Auth] 验证通过: {user.username}, 已用: {current_usage}/{user.daily_quota}")
     return user
 
 
 # ===== CORS 预检请求处理 =====
 # 注意：由于 URL 规范化中间件的存在，用户输入的任意前缀（如 /ABC/v1/...）都会被自动修正
 # 因此这里只需要定义标准路径即可
+
+
+async def handle_openai_endpoint(request: Request, user: User, db: AsyncSession, body: dict, client_ip: str, user_agent: str, start_time: float):
+    """处理 OpenAI 端点转发"""
+    model = body.get("model", "")
+    stream = body.get("stream", False)
+
+    # 获取可用的 OpenAI 端点（按优先级排序，只选择启用的）
+    result = await db.execute(
+        select(OpenAIEndpoint)
+        .where(OpenAIEndpoint.is_active == True)
+        .order_by(OpenAIEndpoint.priority.desc(), OpenAIEndpoint.id)
+    )
+    endpoints = result.scalars().all()
+
+    if not endpoints:
+        raise HTTPException(status_code=503, detail="没有可用的 OpenAI 端点，请联系管理员配置")
+
+    # 尝试每个端点
+    last_error = None
+    for endpoint in endpoints:
+        try:
+            # 构建请求
+            headers = {
+                "Authorization": f"Bearer {endpoint.api_key}",
+                "Content-Type": "application/json"
+            }
+
+            url = f"{endpoint.base_url}/chat/completions"
+
+            if stream:
+                # 流式响应 - 不能在 async with 中使用，需要在外部管理客户端
+                async def stream_generator():
+                    client = httpx.AsyncClient(timeout=60.0)
+                    try:
+                        async with client.stream("POST", url, json=body, headers=headers) as response:
+                            response.raise_for_status()
+
+                            # 更新端点统计
+                            endpoint.total_requests = (endpoint.total_requests or 0) + 1
+                            endpoint.last_used_at = datetime.utcnow()
+                            await db.commit()
+
+                            # 记录日志
+                            async with async_session() as log_db:
+                                log = UsageLog(
+                                    user_id=user.id,
+                                    model=model,
+                                    endpoint="/v1/chat/completions",
+                                    status_code=200,
+                                    latency_ms=(time.time() - start_time) * 1000,
+                                    client_ip=client_ip,
+                                    user_agent=user_agent
+                                )
+                                log_db.add(log)
+                                await log_db.commit()
+
+                            async for chunk in response.aiter_bytes():
+                                yield chunk
+                    except Exception as e:
+                        error_msg = str(e)
+                        # 记录错误
+                        endpoint.failed_requests = (endpoint.failed_requests or 0) + 1
+                        endpoint.last_error = error_msg[:500]
+                        await db.commit()
+
+                        # 记录错误日志
+                        async with async_session() as log_db:
+                            log = UsageLog(
+                                user_id=user.id,
+                                model=model,
+                                endpoint="/v1/chat/completions",
+                                status_code=500,
+                                latency_ms=(time.time() - start_time) * 1000,
+                                error_message=error_msg[:2000],
+                                client_ip=client_ip,
+                                user_agent=user_agent
+                            )
+                            log_db.add(log)
+                            await log_db.commit()
+                        raise
+                    finally:
+                        await client.aclose()
+
+                return StreamingResponse(
+                    stream_generator(),
+                    media_type="text/event-stream",
+                    headers={
+                        "Cache-Control": "no-cache",
+                        "Connection": "keep-alive",
+                    }
+                )
+            else:
+                # 非流式响应
+                async with httpx.AsyncClient(timeout=60.0) as client:
+                    response = await client.post(url, json=body, headers=headers)
+                    response.raise_for_status()
+
+                    # 更新端点统计
+                    endpoint.total_requests = (endpoint.total_requests or 0) + 1
+                    endpoint.last_used_at = datetime.utcnow()
+                    await db.commit()
+
+                    # 记录日志
+                    log = UsageLog(
+                        user_id=user.id,
+                        model=model,
+                        endpoint="/v1/chat/completions",
+                        status_code=200,
+                        latency_ms=(time.time() - start_time) * 1000,
+                        client_ip=client_ip,
+                        user_agent=user_agent
+                    )
+                    db.add(log)
+                    await db.commit()
+
+                    await notify_log_update({
+                        "username": user.username,
+                        "model": model,
+                        "status_code": 200,
+                        "latency_ms": round((time.time() - start_time) * 1000, 0),
+                        "created_at": datetime.utcnow().isoformat()
+                    })
+                    await notify_stats_update()
+
+                    return JSONResponse(content=response.json())
+
+        except httpx.HTTPStatusError as e:
+            last_error = f"{endpoint.name}: HTTP {e.response.status_code} - {e.response.text}"
+            endpoint.failed_requests = (endpoint.failed_requests or 0) + 1
+            endpoint.last_error = last_error[:500]
+            await db.commit()
+
+            # 记录错误日志
+            log = UsageLog(
+                user_id=user.id,
+                model=model,
+                endpoint="/v1/chat/completions",
+                status_code=e.response.status_code,
+                latency_ms=(time.time() - start_time) * 1000,
+                error_message=last_error[:2000],
+                client_ip=client_ip,
+                user_agent=user_agent
+            )
+            db.add(log)
+            await db.commit()
+
+            print(f"[OpenAI Endpoint] ❌ {endpoint.name} 失败: {last_error}", flush=True)
+            continue
+
+        except Exception as e:
+            last_error = f"{endpoint.name}: {str(e)}"
+            endpoint.failed_requests = (endpoint.failed_requests or 0) + 1
+            endpoint.last_error = last_error[:500]
+            await db.commit()
+
+            # 记录错误日志
+            log = UsageLog(
+                user_id=user.id,
+                model=model,
+                endpoint="/v1/chat/completions",
+                status_code=500,
+                latency_ms=(time.time() - start_time) * 1000,
+                error_message=last_error[:2000],
+                client_ip=client_ip,
+                user_agent=user_agent
+            )
+            db.add(log)
+            await db.commit()
+
+            print(f"[OpenAI Endpoint] ❌ {endpoint.name} 异常: {last_error}", flush=True)
+            continue
+
+    # 所有端点都失败了
+    raise HTTPException(status_code=503, detail=f"所有 OpenAI 端点都失败了。最后错误: {last_error}")
+
 
 @router.options("/v1/chat/completions")
 @router.options("/v1/models")
@@ -261,13 +428,33 @@ async def chat_completions(
 
     # 检测模型前缀，判断使用哪个后端
     # ag- 前缀 = Antigravity 后端
-    # 无前缀 = Gemini CLI 后端
+    # gemini- 前缀 = 优先使用 OpenAI 端点，无配置时使用 Gemini CLI 后端
+    # 其他 = OpenAI 端点后端
     if model.startswith("ag-"):
         # 转发到 Antigravity 处理
         from app.routers.antigravity import handle_chat_completions_antigravity
         return await handle_chat_completions_antigravity(request, user, db, body)
 
-    # 以下是原有的 Gemini CLI 处理逻辑
+    # 检查是否有可用的 OpenAI 端点
+    openai_endpoints_result = await db.execute(
+        select(OpenAIEndpoint)
+        .where(OpenAIEndpoint.is_active == True)
+        .limit(1)
+    )
+    has_openai_endpoints = openai_endpoints_result.scalar_one_or_none() is not None
+
+    # 如果配置了 OpenAI 端点，优先使用 OpenAI 端点（支持所有模型包括 gemini-*）
+    if has_openai_endpoints:
+        return await handle_openai_endpoint(request, user, db, body, client_ip, user_agent, start_time)
+
+    # 如果没有配置 OpenAI 端点，且不是 Gemini 模型，返回错误
+    if not model.startswith("gemini-"):
+        raise HTTPException(
+            status_code=503,
+            detail=f"模型 {model} 需要配置 OpenAI 端点。请联系管理员在后台添加 OpenAI 兼容的 API 端点。"
+        )
+
+    # 以下是原有的 Gemini CLI 处理逻辑（仅当没有配置 OpenAI 端点时使用）
     
     # 检查用户是否参与大锅饭
     user_has_public = await CredentialPool.check_user_has_public_creds(db, user.id)

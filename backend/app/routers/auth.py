@@ -130,32 +130,6 @@ async def get_me(user: User = Depends(get_current_user), db: AsyncSession = Depe
     )
     today_usage = result.scalar() or 0
     
-    # 按模型分类统计今日使用量
-    flash_result = await db.execute(
-        select(func.count(UsageLog.id))
-        .where(UsageLog.user_id == user.id)
-        .where(UsageLog.created_at >= start_of_day)
-        .where(UsageLog.model.notlike('%pro%'))
-    )
-    flash_usage = flash_result.scalar() or 0
-    
-    pro25_result = await db.execute(
-        select(func.count(UsageLog.id))
-        .where(UsageLog.user_id == user.id)
-        .where(UsageLog.created_at >= start_of_day)
-        .where(UsageLog.model.like('%pro%'))
-        .where(UsageLog.model.notlike('%3%'))
-    )
-    pro25_usage = pro25_result.scalar() or 0
-    
-    pro30_result = await db.execute(
-        select(func.count(UsageLog.id))
-        .where(UsageLog.user_id == user.id)
-        .where(UsageLog.created_at >= start_of_day)
-        .where(UsageLog.model.like('%3%'))
-    )
-    pro30_usage = pro30_result.scalar() or 0
-    
     # 获取用户凭证数量
     cred_result = await db.execute(
         select(func.count(Credential.id))
@@ -189,53 +163,19 @@ async def get_me(user: User = Depends(get_current_user), db: AsyncSession = Depe
         .where(Credential.model_tier == "3")
     )
     cred_30_count = cred_30_result.scalar() or 0
-    
-    # 计算用户各类模型的配额上限
-    # 优先使用用户设置的按模型配额，0表示使用系统默认
-    from app.config import settings
-    if user.quota_flash and user.quota_flash > 0:
-        quota_flash = user.quota_flash
-    elif credential_count > 0:
-        quota_flash = credential_count * settings.quota_flash
-    else:
-        quota_flash = settings.no_cred_quota_flash
-    
-    if user.quota_25pro and user.quota_25pro > 0:
-        quota_25pro = user.quota_25pro
-    elif credential_count > 0:
-        quota_25pro = credential_count * settings.quota_25pro
-    else:
-        quota_25pro = settings.no_cred_quota_25pro
-    
-    if user.quota_30pro and user.quota_30pro > 0:
-        quota_30pro = user.quota_30pro
-    elif cred_30_count > 0:
-        quota_30pro = cred_30_count * settings.quota_30pro
-    elif credential_count > 0:
-        quota_30pro = settings.cred25_quota_30pro
-    else:
-        quota_30pro = settings.no_cred_quota_30pro
-    
-    # 总配额 = 三个模型配额之和
-    total_quota = quota_flash + quota_25pro + quota_30pro
-    
+
     return {
         "id": user.id,
         "username": user.username,
         "email": user.email,
         "is_admin": user.is_admin,
         "is_active": user.is_active,
-        "daily_quota": total_quota,
+        "daily_quota": user.daily_quota,
         "today_usage": today_usage,
         "credential_count": credential_count,
         "public_credential_count": public_credential_count,
         "has_public_credentials": public_credential_count > 0,
         "created_at": user.created_at,
-        "usage_by_model": {
-            "flash": {"used": flash_usage, "quota": quota_flash},
-            "pro25": {"used": pro25_usage, "quota": quota_25pro},
-            "pro30": {"used": pro30_usage, "quota": quota_30pro}
-        },
         "cred_25_count": cred_25_count,
         "cred_30_count": cred_30_count
     }
@@ -1045,10 +985,22 @@ async def get_my_stats(user: User = Depends(get_current_user), db: AsyncSession 
         for log in logs
     ]
 
+    # 计算配额明细（简化版本，统一配额）
+    from app.config import settings
+    default_quota = settings.default_daily_quota
+    bonus_quota = max(0, user.daily_quota - default_quota)
+
     return {
         "total_quota": user.daily_quota,
         "today_usage": today_usage,
         "credentials_count": credentials_count,
         "cred_30_count": cred_30_count,
-        "today_logs": today_logs
+        "today_logs": today_logs,
+        "quota_breakdown": {
+            "flash": 0,  # 已废弃，保留兼容性
+            "pro_25": 0,  # 已废弃，保留兼容性
+            "tier_3": 0,  # 已废弃，保留兼容性
+            "daily": default_quota,  # 每日基础配额
+            "bonus": bonus_quota  # 奖励配额（凭证奖励等）
+        }
     }

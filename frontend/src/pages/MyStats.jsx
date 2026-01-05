@@ -1,12 +1,14 @@
-import { ArrowLeft, BarChart2, Cat, RefreshCw } from 'lucide-react'
+import { BarChart2, Cat, RefreshCw } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import api from '../api'
 
 export default function MyStats() {
+  const navigate = useNavigate()
   const [stats, setStats] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [activeTab, setActiveTab] = useState('stats')  // 新增标签页状态
 
   useEffect(() => {
     fetchMyStats()
@@ -35,7 +37,7 @@ export default function MyStats() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center">
         <div className="text-white flex items-center gap-2">
           <RefreshCw className="animate-spin" />
           加载中...
@@ -45,32 +47,50 @@ export default function MyStats() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white">
+    <div className="min-h-screen text-white">
       {/* 导航栏 */}
       <nav className="bg-dark-900 border-b border-dark-700">
-        <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
+        <div className="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Cat className="w-8 h-8 text-purple-400" />
             <span className="text-xl font-bold">Catiecli</span>
-            <span className="text-sm text-gray-500 bg-dark-700 px-2 py-0.5 rounded">个人统计</span>
           </div>
-          <div className="flex items-center gap-3">
-            <button
-              onClick={fetchMyStats}
-              className="px-3 py-2 bg-gray-700 rounded-lg hover:bg-gray-600 text-sm flex items-center gap-2"
-            >
-              <RefreshCw size={16} />
-              刷新
-            </button>
-            <Link to="/dashboard" className="text-gray-400 hover:text-white flex items-center gap-2">
-              <ArrowLeft size={20} />
-              返回
-            </Link>
-          </div>
+          <button
+            onClick={fetchMyStats}
+            className="px-3 py-2 bg-gray-700 rounded-lg hover:bg-gray-600 text-sm flex items-center gap-2"
+          >
+            <RefreshCw size={16} />
+            刷新
+          </button>
         </div>
       </nav>
 
-      <div className="max-w-6xl mx-auto px-4 py-8">
+      <div className="max-w-4xl mx-auto px-4 py-6">
+        {/* Tab 导航 */}
+        <div className="flex gap-2 border-b border-dark-700 mb-6">
+          <button
+            onClick={() => setActiveTab('stats')}
+            className={`px-6 py-3 font-medium border-b-2 transition-colors ${
+              activeTab === 'stats'
+                ? 'text-white border-purple-500'
+                : 'text-gray-400 border-transparent hover:text-white'
+            }`}
+          >
+            个人统计
+          </button>
+          <button
+            onClick={() => navigate('/dashboard?tab=credentials')}
+            className="px-6 py-3 font-medium border-b-2 border-transparent text-gray-400 hover:text-white hover:border-purple-500 transition-colors"
+          >
+            凭证管理
+          </button>
+          <button
+            onClick={() => navigate('/dashboard?tab=apikey')}
+            className="px-6 py-3 font-medium border-b-2 border-transparent text-gray-400 hover:text-white hover:border-red-500 transition-colors"
+          >
+            API密钥
+          </button>
+        </div>
         {error && (
           <div className="mb-6 p-4 bg-red-500/10 border border-red-500/30 rounded-lg text-red-400">
             {error}
@@ -129,33 +149,6 @@ export default function MyStats() {
                       width: `${Math.min(100, (stats.today_usage / stats.total_quota) * 100)}%`
                     }}
                   />
-                </div>
-              </div>
-
-              {/* 配额明细 */}
-              <div className="bg-gray-700/30 rounded-lg p-4">
-                <div className="text-sm text-gray-400 mb-3">配额明细</div>
-                <div className="grid grid-cols-2 md:grid-cols-5 gap-3 text-sm">
-                  <div className="bg-cyan-600/20 border border-cyan-600/30 rounded-lg p-3 text-center">
-                    <div className="text-cyan-400 font-bold text-lg">{stats.quota_breakdown.flash.toLocaleString()}</div>
-                    <div className="text-cyan-300 text-xs mt-1">Flash</div>
-                  </div>
-                  <div className="bg-orange-600/20 border border-orange-600/30 rounded-lg p-3 text-center">
-                    <div className="text-orange-400 font-bold text-lg">{stats.quota_breakdown.pro_25.toLocaleString()}</div>
-                    <div className="text-orange-300 text-xs mt-1">2.5 Pro</div>
-                  </div>
-                  <div className="bg-pink-600/20 border border-pink-600/30 rounded-lg p-3 text-center">
-                    <div className="text-pink-400 font-bold text-lg">{stats.quota_breakdown.tier_3.toLocaleString()}</div>
-                    <div className="text-pink-300 text-xs mt-1">3.0</div>
-                  </div>
-                  <div className="bg-purple-600/20 border border-purple-600/30 rounded-lg p-3 text-center">
-                    <div className="text-purple-400 font-bold text-lg">{stats.quota_breakdown.daily.toLocaleString()}</div>
-                    <div className="text-purple-300 text-xs mt-1">每日额度</div>
-                  </div>
-                  <div className="bg-yellow-600/20 border border-yellow-600/30 rounded-lg p-3 text-center">
-                    <div className="text-yellow-400 font-bold text-lg">{stats.quota_breakdown.bonus.toLocaleString()}</div>
-                    <div className="text-yellow-300 text-xs mt-1">奖励额度</div>
-                  </div>
                 </div>
               </div>
             </div>

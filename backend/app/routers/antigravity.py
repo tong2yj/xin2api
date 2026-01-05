@@ -70,11 +70,10 @@ async def get_user_and_credential_from_api_key(request: Request, db: AsyncSessio
     )
     credential = result.scalar_one_or_none()
 
-    # 如果用户没有自己的凭证，尝试使用公共池
-    if not credential and settings.credential_pool_mode in ["tier3_shared", "full_shared"]:
+    # 如果用户没有自己的凭证，使用任意可用凭证（所有用户都可以使用所有凭证）
+    if not credential:
         result = await db.execute(
             select(Credential)
-            .where(Credential.is_public == True)
             .where(Credential.credential_type == "oauth_antigravity")  # 只查找 Antigravity 凭证
             .where(Credential.is_active == True)
             .order_by(Credential.last_used_at.asc().nullsfirst())
@@ -294,11 +293,10 @@ async def handle_chat_completions_antigravity(request: Request, user: User, db: 
     )
     credential = result.scalar_one_or_none()
 
-    # 如果用户没有自己的凭证，尝试使用公共池
-    if not credential and settings.credential_pool_mode in ["tier3_shared", "full_shared"]:
+    # 如果用户没有自己的凭证，使用任意可用凭证（所有用户都可以使用所有凭证）
+    if not credential:
         result = await db.execute(
             select(Credential)
-            .where(Credential.is_public == True)
             .where(Credential.credential_type == "oauth_antigravity")
             .where(Credential.is_active == True)
             .order_by(Credential.last_used_at.asc().nullsfirst())
