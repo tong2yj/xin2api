@@ -1470,3 +1470,98 @@ async def get_discord_config():
         "client_id": settings.discord_client_id if settings.discord_client_id else None,
         "discord_oauth_only": settings.discord_oauth_only
     }
+
+
+@router.get("/my-stats")
+async def get_my_stats(
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """获取当前用户的个人统计信息"""
+    from datetime import datetime, timedelta
+
+    # 计算今天的开始时间（UTC 07:00 = 北京时间 15:00）
+    now = datetime.utcnow()
+    reset_time_utc = now.replace(hour=7, minute=0, second=0, microsecond=0)
+    if now < reset_time_utc:
+        start_of_day = reset_time_utc - timedelta(days=1)
+    else:
+        start_of_day = reset_time_utc
+
+    # 获取今日所有日志
+    today_logs_result = await db.execute(
+        select(UsageLog)
+        .where(UsageLog.user_id == user.id)
+        .where(UsageLog.created_at >= start_of_day)
+        .order_by(UsageLog.created_at.desc())
+    )
+    today_logs = today_logs_result.scalars().all()
+
+    # 统计今日使用量（只统计成功的请求）
+    today_usage = sum(1 for log in today_logs if log.status_code == 200)
+
+    # 计算总配额
+    from app.models.user import Credential
+    cred_result = await db.execute(
+        select(Credential)
+        .where(Credential.user_id == user.id)
+        .where(Credential.is_active == True)
+    )
+    credentials = cred_result.scalars().all()
+    credentials_count = len(credentials)
+    cred_30_count = sum(1 for c in credentials if c.model_tier == "3")
+
+    # 计算真实配额
+    if user.quota_flash and user.quota_flash > 0:
+        quota_flash = user.quota_flash
+    elif credentials_count > 0:
+        quota_flash = credentials_count * settings.quota_flash
+    else:
+        quota_flash = settings.no_cred_quota_flash
+
+    if user.quota_25pro and user.quota_25pro > 0:
+        quota_25pro = user.quota_25pro
+    elif credentials_count > 0:
+        quota_25pro = credentials_count * settings.quota_25pro
+    else:
+        quota_25pro = settings.no_cred_quota_25pro
+
+    if user.quota_30pro and user.quota_30pro > 0:
+        quota_30pro = user.quota_30pro
+    elif cred_30_count > 0:
+        quota_30pro = cred_30_count * settings.quota_30pro
+    else:
+        quota_30pro = 0
+
+    total_quota = quota_flash + quota_25pro + quota_30pro + user.daily_quota + user.bonus_quota
+
+    # 格式化今日日志
+    logs_formatted = []
+    for log in today_logs:
+        logs_formatted.append({
+            "id": log.id,
+            "created_at": log.created_at.isoformat() if log.created_at else None,
+            "model": log.model,
+            "endpoint": log.endpoint,
+            "status_code": log.status_code,
+            "latency_ms": log.latency_ms,
+            "tokens_input": log.tokens_input,
+            "tokens_output": log.tokens_output,
+            "credential_email": log.credential_email,
+            "error_message": log.error_message
+        })
+
+    return {
+        "today_usage": today_usage,
+        "total_quota": total_quota,
+        "quota_breakdown": {
+            "flash": quota_flash,
+            "pro_25": quota_25pro,
+            "tier_3": quota_30pro,
+            "daily": user.daily_quota,
+            "bonus": user.bonus_quota
+        },
+        "credentials_count": credentials_count,
+        "cred_30_count": cred_30_count,
+        "today_logs": logs_formatted
+    }

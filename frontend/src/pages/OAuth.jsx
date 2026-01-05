@@ -155,38 +155,18 @@ export default function OAuth() {
       {showQuiz && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
           <div className="bg-dark-800 rounded-2xl max-w-md w-full p-6 border border-cyan-500/50">
-            <h3 className="text-xl font-bold text-cyan-400 mb-4">📝 快速问答</h3>
-            
+            <h3 className="text-xl font-bold text-cyan-400 mb-4">📝 操作确认</h3>
+
             <p className="text-gray-300 mb-6">
               当你完成登录 Google 账号后，发现浏览器打开了一个无法访问的页面，你应该怎么做？
             </p>
-            
-            <div className="space-y-3">
-              <button
-                onClick={() => handleQuizAnswer(true)}
-                className="w-full p-4 text-left rounded-lg border border-dark-500 hover:border-gray-500 hover:bg-dark-700 text-gray-300 transition-colors"
-              >
-                完整复制该网页链接并回到此页面粘贴
-              </button>
-              <button
-                onClick={() => handleQuizAnswer(false)}
-                className="w-full p-4 text-left rounded-lg border border-dark-500 hover:border-gray-500 hover:bg-dark-700 text-gray-300 transition-colors"
-              >
-                到公益站帖子下求助
-              </button>
-              <button
-                onClick={() => handleQuizAnswer(false)}
-                className="w-full p-4 text-left rounded-lg border border-dark-500 hover:border-gray-500 hover:bg-dark-700 text-gray-300 transition-colors"
-              >
-                刷新页面尝试访问
-              </button>
-              <button
-                onClick={() => handleQuizAnswer(false)}
-                className="w-full p-4 text-left rounded-lg border border-dark-500 hover:border-gray-500 hover:bg-dark-700 text-gray-300 transition-colors"
-              >
-                尝试重新开始认证流程
-              </button>
-            </div>
+
+            <button
+              onClick={() => handleQuizAnswer(true)}
+              className="w-full p-4 text-left rounded-lg border-2 border-cyan-500 bg-cyan-500/10 hover:bg-cyan-500/20 text-gray-200 transition-colors font-medium"
+            >
+              ✅ 完整复制该网页链接并回到此页面粘贴
+            </button>
           </div>
         </div>
       )}

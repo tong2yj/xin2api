@@ -359,21 +359,17 @@ export default function Dashboard() {
 
         {/* Tab 导航 */}
         <div className="flex gap-2 border-b border-dark-700 mb-6">
-          <button
-            onClick={() => setActiveTab('stats')}
-            className={`px-6 py-3 font-medium border-b-2 transition-colors ${
-              activeTab === 'stats' 
-                ? 'text-white border-purple-500' 
-                : 'text-gray-400 border-transparent hover:text-white'
-            }`}
+          <Link
+            to="/my-stats"
+            className="px-6 py-3 font-medium border-b-2 border-transparent text-gray-400 hover:text-white hover:border-purple-500 transition-colors"
           >
             个人统计
-          </button>
+          </Link>
           <button
             onClick={() => { setActiveTab('credentials'); fetchMyCredentials(); }}
             className={`px-6 py-3 font-medium border-b-2 transition-colors ${
-              activeTab === 'credentials' 
-                ? 'text-white border-purple-500' 
+              activeTab === 'credentials'
+                ? 'text-white border-purple-500'
                 : 'text-gray-400 border-transparent hover:text-white'
             }`}
           >
@@ -382,8 +378,8 @@ export default function Dashboard() {
           <button
             onClick={() => setActiveTab('apikey')}
             className={`px-6 py-3 font-medium border-b-2 transition-colors ${
-              activeTab === 'apikey' 
-                ? 'text-red-400 border-red-500' 
+              activeTab === 'apikey'
+                ? 'text-red-400 border-red-500'
                 : 'text-gray-400 border-transparent hover:text-white'
             }`}
           >
@@ -391,158 +387,6 @@ export default function Dashboard() {
           </button>
         </div>
 
-        {/* Tab: 个人统计 */}
-        {activeTab === 'stats' && (
-          <>
-            <h2 className="text-xl font-semibold mb-4">个人使用统计</h2>
-            
-            {/* 按模型分类统计卡片 */}
-            <div className="grid md:grid-cols-3 gap-4 mb-6">
-              <div className="bg-gradient-to-br from-cyan-900/30 to-cyan-800/10 border border-cyan-700/30 rounded-xl p-5">
-                <div className="text-center">
-                  <div className="text-sm text-cyan-400 mb-2 font-medium">Flash 模型</div>
-                  <div className="text-3xl font-bold mb-1">
-                    <span className="text-cyan-300">{userInfo?.usage_by_model?.flash?.used || 0}</span>
-                    <span className="text-gray-500 text-xl"> / {userInfo?.usage_by_model?.flash?.quota || 0}</span>
-                  </div>
-                </div>
-              </div>
-              <div className="bg-gradient-to-br from-orange-900/30 to-orange-800/10 border border-orange-700/30 rounded-xl p-5">
-                <div className="text-center">
-                  <div className="text-sm text-orange-400 mb-2 font-medium">2.5 Pro 模型</div>
-                  <div className="text-3xl font-bold mb-1">
-                    <span className="text-orange-300">{userInfo?.usage_by_model?.pro25?.used || 0}</span>
-                    <span className="text-gray-500 text-xl"> / {userInfo?.usage_by_model?.pro25?.quota || 0}</span>
-                  </div>
-                </div>
-              </div>
-              <div className="bg-gradient-to-br from-pink-900/30 to-pink-800/10 border border-pink-700/30 rounded-xl p-5">
-                <div className="text-center">
-                  <div className="text-sm text-pink-400 mb-2 font-medium">3.0 模型</div>
-                  <div className="text-3xl font-bold mb-1">
-                    <span className="text-pink-300">{userInfo?.usage_by_model?.pro30?.used || 0}</span>
-                    <span className="text-gray-500 text-xl"> / {userInfo?.usage_by_model?.pro30?.quota || 0}</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* 总配额和凭证统计 */}
-            <div className="grid md:grid-cols-2 gap-4 mb-6">
-              <div className="bg-dark-800 border border-dark-600 rounded-xl p-6">
-                <div className="text-center">
-                  <div className="text-4xl font-bold mb-2">
-                    <span className="text-blue-400">{userInfo?.today_usage || 0}</span>
-                    <span className="text-gray-500"> / {userInfo?.daily_quota ?? 100}</span>
-                  </div>
-                  <div className="text-gray-400">总已使用 / 总配额上限</div>
-                </div>
-              </div>
-              <div className="bg-dark-800 border border-dark-600 rounded-xl p-6">
-                <div className="text-center">
-                  <div className="text-4xl font-bold text-green-400 mb-2">
-                    {userInfo?.credential_count || 0}
-                  </div>
-                  <div className="text-gray-400">有效 Google 账号数</div>
-                </div>
-              </div>
-            </div>
-
-            {/* 贡献提示 */}
-            <div className="bg-gradient-to-r from-purple-600/20 via-pink-600/20 to-purple-600/20 border border-purple-500/30 rounded-xl p-6 mb-6">
-              <div className="flex items-center gap-4">
-                <div className="flex-shrink-0">
-                  <Gift className="w-12 h-12 text-purple-400" />
-                </div>
-                <div className="flex-1">
-                  <h3 className="text-lg font-semibold mb-1">获取凭证，上传使用</h3>
-                  <p className="text-gray-400 text-sm">
-                    通过 Google OAuth 授权，将您的 Gemini API 凭证上传平台使用。
-                  </p>
-                </div>
-                <Link 
-                  to="/oauth" 
-                  className="px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-medium flex items-center gap-2"
-                >
-                  <ExternalLink size={18} />
-                  立即上传
-                </Link>
-              </div>
-            </div>
-
-            {/* 全站统计 - 仅管理员可见 */}
-            {user?.is_admin && (
-              <>
-                <h3 className="text-lg font-semibold mb-3">全站统计</h3>
-                {statsLoading ? (
-                  <div className="text-center py-4 text-gray-400">
-                    <div className="animate-spin w-6 h-6 border-2 border-purple-500 border-t-transparent rounded-full mx-auto mb-2"></div>
-                    加载中...
-                  </div>
-                ) : (
-                  <div className="grid md:grid-cols-3 gap-4">
-                    <div className="bg-dark-800 border border-dark-600 rounded-xl p-4 text-center">
-                      <Users className="w-6 h-6 text-blue-400 mx-auto mb-2" />
-                      <div className="text-xl font-bold">{stats?.user_count || '-'}</div>
-                      <div className="text-gray-400 text-sm">注册用户</div>
-                    </div>
-                    <div className="bg-dark-800 border border-dark-600 rounded-xl p-4 text-center">
-                      <Zap className="w-6 h-6 text-yellow-400 mx-auto mb-2" />
-                      <div className="text-xl font-bold">{stats?.active_credentials || '-'}</div>
-                      <div className="text-gray-400 text-sm">可用凭证</div>
-                    </div>
-                    <div className="bg-dark-800 border border-dark-600 rounded-xl p-4 text-center">
-                      <Activity className="w-6 h-6 text-green-400 mx-auto mb-2" />
-                      <div className="text-xl font-bold">
-                        <span className="text-green-400">{stats?.today_success || 0}</span>
-                        <span className="text-gray-500 mx-1">/</span>
-                        <span className="text-red-400">{stats?.today_failed || 0}</span>
-                      </div>
-                      <div className="text-gray-400 text-sm">成功/失败</div>
-                    </div>
-                  </div>
-                )}
-
-                {/* 报错统计 */}
-                {stats?.errors && Object.keys(stats.errors.by_code || {}).length > 0 && (
-                  <div className="bg-dark-800 border border-dark-600 rounded-xl p-4 mt-4">
-                    <h3 className="text-sm font-medium text-gray-300 mb-3">📊 今日报错统计</h3>
-                    <div className="flex flex-wrap gap-2 mb-4">
-                      {Object.entries(stats.errors.by_code).map(([code, count]) => (
-                        <span key={code} className={`px-2 py-1 rounded text-sm ${
-                          code === '429' ? 'bg-orange-500/20 text-orange-400' :
-                          code === '401' || code === '403' ? 'bg-red-500/20 text-red-400' :
-                          'bg-gray-500/20 text-gray-400'
-                        }`}>
-                          {code}: {count}次
-                        </span>
-                      ))}
-                    </div>
-                    {stats.errors.recent?.length > 0 && (
-                      <>
-                        <h4 className="text-xs text-gray-500 mb-2">最近报错</h4>
-                        <div className="space-y-1 max-h-32 overflow-y-auto text-xs">
-                          {stats.errors.recent.slice(0, 5).map(err => (
-                            <div key={err.id} className="flex justify-between text-gray-400">
-                              <span>
-                                <span className={err.status_code === 429 ? 'text-orange-400' : 'text-red-400'}>
-                                  {err.status_code}
-                                </span>
-                                {err.cd_seconds && <span className="ml-1 text-orange-400">CD:{err.cd_seconds}s</span>}
-                                <span className="ml-2">{err.model}</span>
-                              </span>
-                              <span>{new Date(err.created_at).toLocaleTimeString()}</span>
-                            </div>
-                          ))}
-                        </div>
-                      </>
-                    )}
-                  </div>
-                )}
-              </>
-            )}
-          </>
-        )}
 
         {/* Tab: 凭证管理 */}
         {activeTab === 'credentials' && (

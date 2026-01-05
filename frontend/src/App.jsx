@@ -10,6 +10,7 @@ import OAuth from './pages/OAuth'
 import Register from './pages/Register'
 import Settings from './pages/Settings'
 import Stats from './pages/Stats'
+import MyStats from './pages/MyStats'
 
 // 认证上下文
 export const AuthContext = createContext(null)
@@ -87,6 +88,9 @@ function App() {
           } />
           <Route path="/stats" element={
             <ProtectedRoute adminOnly><Stats /></ProtectedRoute>
+          } />
+          <Route path="/my-stats" element={
+            <ProtectedRoute><MyStats /></ProtectedRoute>
           } />
           <Route path="/settings" element={
             <ProtectedRoute adminOnly><Settings /></ProtectedRoute>
