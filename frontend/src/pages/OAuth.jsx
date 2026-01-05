@@ -48,7 +48,7 @@ export default function OAuth() {
     }
   }, [showGuide, countdown])
 
-  const getAuthUrl = async () =>{
+  const getAuthUrl = async () => {
     setLoading(true)
     setMessage({ type: '', text: '' })
     try {
