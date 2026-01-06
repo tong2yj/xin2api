@@ -79,6 +79,8 @@ async def init_db():
                 "ALTER TABLE usage_logs ADD COLUMN error_type VARCHAR(50)",
                 "ALTER TABLE usage_logs ADD COLUMN error_code VARCHAR(100)",
                 "ALTER TABLE usage_logs ADD COLUMN credential_email VARCHAR(100)",
+                # 用户审核字段（新增）
+                "ALTER TABLE users ADD COLUMN is_approved BOOLEAN DEFAULT 0",
             ]
         else:
             # PostgreSQL 迁移（使用 IF NOT EXISTS 语法）
@@ -103,6 +105,8 @@ async def init_db():
                 "ALTER TABLE usage_logs ADD COLUMN IF NOT EXISTS error_type VARCHAR(50)",
                 "ALTER TABLE usage_logs ADD COLUMN IF NOT EXISTS error_code VARCHAR(100)",
                 "ALTER TABLE usage_logs ADD COLUMN IF NOT EXISTS credential_email VARCHAR(100)",
+                # 用户审核字段（新增）
+                "ALTER TABLE users ADD COLUMN IF NOT EXISTS is_approved BOOLEAN DEFAULT FALSE",
             ]
         
         for sql in migrations:
