@@ -310,7 +310,7 @@ export default function GlobalStatsTab() {
                           {selectedLog.status_code}
                        </span>
                     </DetailItem>
-                    <DetailItem label="耗时" value={`${selectedLog.latency_ms?.toFixed(0)} ms`} />
+                    <DetailItem label="耗时" value={`${selectedLog.latency_ms?.toFixed(1)} s`} />
                     <DetailItem label="用户" value={selectedLog.username} />
                     <DetailItem label="模型" value={selectedLog.model} valueClass="text-cyan-400 font-mono" />
                     <DetailItem label="IP" value={selectedLog.client_ip} valueClass="font-mono" />

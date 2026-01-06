@@ -66,7 +66,7 @@ export default function StatsTab() {
     {
       key: 'latency_ms',
       label: '耗时',
-      render: (val) => <span className="text-dark-400 text-xs">{val ? `${val.toFixed(0)}ms` : '-'}</span>,
+      render: (val) => <span className="text-dark-400 text-xs">{val ? `${val.toFixed(1)}s` : '-'}</span>,
     },
     {
       key: 'tokens',
