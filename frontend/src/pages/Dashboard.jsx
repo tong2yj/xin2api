@@ -424,13 +424,6 @@ export default function Dashboard() {
                   </button>
                 )}
                 <Link 
-                  to="/credentials"
-                  className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg flex items-center gap-2"
-                >
-                  <Upload size={16} />
-                  上传凭证
-                </Link>
-                <Link 
                   to="/oauth"
                   className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg flex items-center gap-2"
                 >
@@ -445,7 +438,7 @@ export default function Dashboard() {
             ) : myCredentials.length === 0 ? (
               <div className="bg-dark-800 border border-dark-600 rounded-xl p-8 text-center">
                 <Shield className="w-12 h-12 text-gray-500 mx-auto mb-4" />
-                <p className="text-gray-400 mb-4">暂无凭证，去 OAuth 页面获取或上传 JSON</p>
+                <p className="text-gray-400 mb-4">暂无凭证，去 OAuth 页面获取</p>
                 <Link 
                   to="/oauth"
                   className="inline-flex items-center gap-2 px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-lg"

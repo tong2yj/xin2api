@@ -311,10 +311,10 @@ import json
 async def upload_credentials(
     files: List[UploadFile] = File(...),
     is_public: bool = Form(default=False),
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db)
 ):
-    """上传 JSON 凭证文件（支持多文件和ZIP压缩包）"""
+    """上传 JSON 凭证文件（支持多文件和ZIP压缩包）- 仅管理员"""
     from app.services.crypto import encrypt_credential
     from app.config import settings
     import zipfile

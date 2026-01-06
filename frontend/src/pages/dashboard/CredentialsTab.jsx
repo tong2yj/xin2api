@@ -1,4 +1,4 @@
-import { ExternalLink, ShieldCheck, Trash2, Upload } from 'lucide-react';
+import { ExternalLink, ShieldCheck, Trash2 } from 'lucide-react';
 import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Button } from '../../components/common/Button';
@@ -68,11 +68,6 @@ export default function CredentialsTab({ forceDonate = false }) {
               清理失效
             </Button>
           )}
-          <Link to="/credentials">
-            <Button variant="success" size="sm" icon={Upload}>
-              上传
-            </Button>
-          </Link>
           <Link to="/oauth">
             <Button variant="primary" size="sm" icon={ExternalLink}>
               获取新凭证

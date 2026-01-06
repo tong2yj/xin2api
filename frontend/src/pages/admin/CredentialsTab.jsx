@@ -6,6 +6,7 @@ import {
   Plus,
   RefreshCw,
   Trash2,
+  Upload,
   X,
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
@@ -37,6 +38,11 @@ export default function CredentialsTab() {
   const [alertModal, setAlertModal] = useState({ open: false, title: '', message: '', type: 'info' });
   const [credDetailModal, setCredDetailModal] = useState({ open: false, data: null, loading: false });
   const [duplicateModal, setDuplicateModal] = useState({ open: false, data: null, loading: false });
+
+  // 上传凭证状态
+  const [uploadFiles, setUploadFiles] = useState([]);
+  const [uploading, setUploading] = useState(false);
+  const [uploadPublic, setUploadPublic] = useState(true);
 
   const showAlert = (title, message, type = 'info') => setAlertModal({ open: true, title, message, type });
   const showConfirm = (title, message, onConfirm, danger = false) => setConfirmModal({ open: true, title, message, onConfirm, danger });
@@ -241,6 +247,49 @@ export default function CredentialsTab() {
     }
   };
 
+  const uploadCredentials = async () =\u003e {
+    if (uploadFiles.length === 0) {
+      toast.error('请选择要上传的文件');
+      return;
+    }
+    setUploading(true);
+    try {
+      const formData = new FormData();
+      uploadFiles.forEach(file =\u003e formData.append('files', file));
+      formData.append('is_public', uploadPublic);
+
+      const res = await api.post('/api/auth/credentials/upload', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+
+      toast.success(`上传完成: 成功 ${res.data.uploaded_count}/${res.data.total_count} 个`);
+      setUploadFiles([]);
+      // 清空文件选择
+      const input = document.getElementById('admin-cred-file-input');
+      if (input) input.value = '';
+      fetchCredentials();
+    } catch (err) {
+      toast.error(err.response?.data?.detail || '上传失败');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleFileChange = (e) =\u003e {
+    const files = Array.from(e.target.files);
+    setUploadFiles((prev) =\u003e [...prev, ...files]);
+  };
+
+  const removeFile = (index) =\u003e {
+    setUploadFiles((prev) =\u003e prev.filter((_, i) =\u003e i !== index));
+  };
+
+  const clearFiles = () =\u003e {
+    setUploadFiles([]);
+    const input = document.getElementById('admin-cred-file-input');
+    if (input) input.value = '';
+  };
+
   if (loading) {
     return <div className="text-center py-12 text-gray-400">加载中...</div>;
   }
@@ -333,6 +382,93 @@ export default function CredentialsTab() {
           </div>
         </div>
       )}
+
+      {/* 上传凭证文件 */}
+      \u003cdiv className=\"card\"\u003e
+        \u003ch3 className=\"font-medium mb-3 flex items-center gap-2\"\u003e
+          \u003cUpload size={18} className=\"text-green-400\" /\u003e
+          上传凭证文件
+        \u003c/h3\u003e
+        \u003cdiv className=\"space-y-3\"\u003e
+          {/* 文件选择 */}
+          \u003cdiv className=\"flex flex-col md:flex-row gap-3\"\u003e
+            \u003cinput
+              type=\"file\"
+              accept=\".json,.zip\"
+              multiple
+              onChange={handleFileChange}
+              className=\"hidden\"
+              id=\"admin-cred-file-input\"
+            /\u003e
+            \u003clabel
+              htmlFor=\"admin-cred-file-input\"
+              className=\"px-4 py-2 bg-dark-800 border border-dark-600 rounded-lg text-gray-300 hover:border-green-500 cursor-pointer flex items-center justify-center gap-2\"
+            \u003e
+              \u003cUpload size={16} /\u003e
+              选择文件 (JSON/ZIP)
+            \u003c/label\u003e
+
+            {/* 公开选项 */}
+            \u003clabel className=\"flex items-center gap-2 px-4 py-2 bg-dark-800 border border-dark-600 rounded-lg cursor-pointer hover:border-purple-500\"\u003e
+              \u003cinput
+                type=\"checkbox\"
+                checked={uploadPublic}
+                onChange={(e) =\u003e setUploadPublic(e.target.checked)}
+                className=\"w-4 h-4\"
+              /\u003e
+              \u003cspan className=\"text-gray-300\"\u003e设为公开\u003c/span\u003e
+            \u003c/label\u003e
+
+            {/* 上传按钮 */}
+            \u003cbutton
+              onClick={uploadCredentials}
+              disabled={uploading || uploadFiles.length === 0}
+              className=\"px-6 py-2 bg-green-600 hover:bg-green-500 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg flex items-center gap-2 justify-center\"
+            \u003e
+              {uploading ? (
+                \u003c\u003e
+                  \u003cRefreshCw size={16} className=\"animate-spin\" /\u003e
+                  上传中...
+                \u003c/\u003e
+              ) : (
+                \u003c\u003e
+                  \u003cUpload size={16} /\u003e
+                  上传 {uploadFiles.length \u003e 0 \u0026\u0026 `(${uploadFiles.length})`}
+                \u003c/\u003e
+              )}
+            \u003c/button\u003e
+          \u003c/div\u003e
+
+          {/* 已选文件列表 */}
+          {uploadFiles.length \u003e 0 \u0026\u0026 (
+            \u003cdiv className=\"bg-dark-800 rounded-lg p-3 space-y-2\"\u003e
+              \u003cdiv className=\"flex items-center justify-between mb-2\"\u003e
+                \u003cspan className=\"text-xs text-gray-400\"\u003e已选择 {uploadFiles.length} 个文件\u003c/span\u003e
+                \u003cbutton
+                  onClick={clearFiles}
+                  className=\"text-xs text-red-400 hover:text-red-300\"
+                \u003e
+                  清空全部
+                \u003c/button\u003e
+              \u003c/div\u003e
+              {uploadFiles.map((file, idx) =\u003e (
+                \u003cdiv
+                  key={idx}
+                  className=\"flex items-center justify-between text-sm bg-dark-700 rounded px-3 py-2\"
+                \u003e
+                  \u003cspan className=\"truncate text-gray-300\"\u003e{file.name}\u003c/span\u003e
+                  \u003cbutton
+                    onClick={() =\u003e removeFile(idx)}
+                    className=\"text-red-400 hover:text-red-300 ml-2\"
+                  \u003e
+                    ✕
+                  \u003c/button\u003e
+                \u003c/div\u003e
+              ))}
+            \u003c/div\u003e
+          )}
+        \u003c/div\u003e
+      \u003c/div\u003e
 
       {/* 手动添加凭证 */}
       <div className="card">
