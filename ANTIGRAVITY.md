@@ -6,24 +6,38 @@ Antigravity是Google提供的另一个Gemini API服务端点，支持更多模�
 
 ## 🎯 支持的模型
 
+**模型命名规则**：所有 Antigravity 模型都使用 `ag-` 前缀，以便与 Gemini CLI 模型区分。
+
 ### Gemini 系列（10个）
-- `ag-gemini-2.5-pro` - Gemini 2.5 Pro
-- `ag-gemini-2.5-flash` - Gemini 2.5 Flash
-- `ag-gemini-2.5-flash-thinking` - Gemini 2.5 Flash Thinking
-- `ag-gemini-3-pro-preview` - Gemini 3.0 Pro Preview ⭐
-- `ag-gemini-3-flash-preview` - Gemini 3.0 Flash Preview ⭐
-- `ag-gemini-3-pro-low` - Gemini 3.0 Pro Low
-- `ag-gemini-3-pro-high` - Gemini 3.0 Pro High
-- `ag-gemini-3-pro-image` - Gemini 3.0 Pro Image
-- `ag-gemini-2.5-flash-lite` - Gemini 2.5 Flash Lite
-- `ag-gemini-2.5-flash-image` - Gemini 2.5 Flash Image
+
+| 模型 ID | 真实模型名称 | 说明 |
+|---------|-------------|------|
+| `ag-gemini-2.5-pro` | `gemini-2.5-pro` | Gemini 2.5 Pro |
+| `ag-gemini-2.5-flash` | `gemini-2.5-flash` | Gemini 2.5 Flash |
+| `ag-gemini-2.5-flash-thinking` | `gemini-2.5-flash-thinking` | Gemini 2.5 Flash Thinking 模式 |
+| `ag-gemini-3-pro-preview` | `gemini-3-pro-preview` | Gemini 3 Pro Preview（实验性）⭐ |
+| `ag-gemini-3-flash-preview` | `gemini-3-flash-preview` | Gemini 3 Flash Preview（实验性）⭐ |
+| `ag-gemini-3-pro-low` | `gemini-3-pro-low` | Gemini 3 Pro Low（低成本版本） |
+| `ag-gemini-3-pro-high` | `gemini-3-pro-high` | Gemini 3 Pro High（高性能版本） |
+| `ag-gemini-3-pro-image` | `gemini-3-pro-image` | Gemini 3 Pro Image（图像处理） |
+| `ag-gemini-2.5-flash-lite` | `gemini-2.5-flash-lite` | Gemini 2.5 Flash Lite（轻量版） |
+| `ag-gemini-2.5-flash-image` | `gemini-2.5-flash-image` | Gemini 2.5 Flash Image（图像处理） |
 
 ### Claude 系列（3个）
-- `ag-claude-sonnet-4-5` - Claude Sonnet 4.5
-- `ag-claude-sonnet-4-5-thinking` - Claude Sonnet 4.5 Thinking ⭐
-- `ag-claude-opus-4-5-thinking` - Claude Opus 4.5 Thinking ⭐
 
-**注意**：所有Antigravity模型名称都以 `ag-` 前缀开头。
+| 模型 ID | 真实模型名称 | 说明 |
+|---------|-------------|------|
+| `ag-claude-sonnet-4-5` | `claude-sonnet-4-5` | Claude Sonnet 4.5 |
+| `ag-claude-sonnet-4-5-thinking` | `claude-sonnet-4-5-thinking` | Claude Sonnet 4.5 Thinking 模式 ⭐ |
+| `ag-claude-opus-4-5-thinking` | `claude-opus-4-5-thinking` | Claude Opus 4.5 Thinking 模式 ⭐ |
+
+### 🔄 模型映射机制
+
+当调用 Antigravity API 时，系统会自动：
+1. 检测 `ag-` 前缀
+2. 移除前缀，获取真实模型名称
+3. 使用 Antigravity 凭证调用对应的模型
+4. 在响应中恢复 `ag-` 前缀
 
 ## 🔑 获取Antigravity凭证
 
@@ -224,13 +238,51 @@ curl http://localhost:5002/v1/models \
    - 429错误：请求频率过高
    - 500错误：Antigravity服务异常
 
-## 📚 相关文档
+## 🧪 使用示例
 
-- [TEST_GUIDE.md](./TEST_GUIDE.md) - 完整测试指南
-- [LOCAL_TEST_GUIDE.md](./LOCAL_TEST_GUIDE.md) - 本地测试指南
-- [README.md](./README.md) - 项目主文档
+### 调用 Claude Sonnet 4.5
+
+```bash
+curl http://localhost:5002/v1/chat/completions \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "ag-claude-sonnet-4-5",
+    "messages": [
+      {"role": "user", "content": "你好"}
+    ]
+  }'
+```
+
+### 调用 Claude Thinking 模式
+
+```bash
+curl http://localhost:5002/v1/chat/completions \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "ag-claude-sonnet-4-5-thinking",
+    "messages": [
+      {"role": "user", "content": "解释量子纠缠"}
+    ]
+  }'
+```
+
+### 调用 Gemini 3 Pro Preview
+
+```bash
+curl http://localhost:5002/v1/chat/completions \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "ag-gemini-3-pro-preview",
+    "messages": [
+      {"role": "user", "content": "你好"}
+    ]
+  }'
+```
 
 ---
 
-**更新日期**: 2026-01-05
-**版本**: 1.0
+**更新日期**: 2026-01-06
+**版本**: 2.0
