@@ -1,11 +1,9 @@
-# 🐱 CatieCli
-
 ![Docker](https://img.shields.io/badge/Docker-已支持-blue?logo=docker&logoColor=white)
 ![Python](https://img.shields.io/badge/Python-3.10+-yellow?logo=python&logoColor=white)
 ![React](https://img.shields.io/badge/React-18.2-61DAFB?logo=react&logoColor=white)
 ![FastAPI](https://img.shields.io/badge/FastAPI-Latest-009688?logo=fastapi&logoColor=white)
 
-**Gemini API 多用户代理服务** - 支持 OpenAI 兼容接口、Gemini 原生接口、凭证池管理、用户系统
+**API公益代理服务** - 支持 OpenAI 兼容接口、Gemini 原生接口、凭证池管理、用户系统
 
 ---
 
@@ -174,8 +172,6 @@ CatieCli/
 ## 🚀 部署教程
 
 ### ☁️ Zeabur 一键部署（最简单）
-
-[![Deploy on Zeabur](https://zeabur.com/button.svg)](https://zeabur.com/templates/NWD8X9)
 
 <details>
 <summary><strong>📖 详细步骤</strong>（点击展开）</summary>
