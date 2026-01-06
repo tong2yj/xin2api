@@ -154,6 +154,7 @@ async def handle_openai_endpoint(request: Request, user: User, db: AsyncSession,
                 # 流式响应 - 不能在 async with 中使用，需要在外部管理客户端
                 async def stream_generator():
                     client = httpx.AsyncClient(timeout=60.0)
+                    log_recorded = False  # 标记是否已记录日志，避免重复记录
                     try:
                         async with client.stream("POST", url, json=body, headers=headers) as response:
                             response.raise_for_status()
@@ -163,7 +164,11 @@ async def handle_openai_endpoint(request: Request, user: User, db: AsyncSession,
                             endpoint.last_used_at = datetime.utcnow()
                             await db.commit()
 
-                            # 记录日志
+                            # 流式传输数据
+                            async for chunk in response.aiter_bytes():
+                                yield chunk
+
+                            # 只有在成功完成流式传输后才记录成功日志
                             async with async_session() as log_db:
                                 log = UsageLog(
                                     user_id=user.id,
@@ -176,9 +181,7 @@ async def handle_openai_endpoint(request: Request, user: User, db: AsyncSession,
                                 )
                                 log_db.add(log)
                                 await log_db.commit()
-
-                            async for chunk in response.aiter_bytes():
-                                yield chunk
+                            log_recorded = True
                     except Exception as e:
                         error_msg = str(e)
                         # 记录错误
@@ -186,20 +189,21 @@ async def handle_openai_endpoint(request: Request, user: User, db: AsyncSession,
                         endpoint.last_error = error_msg[:500]
                         await db.commit()
 
-                        # 记录错误日志
-                        async with async_session() as log_db:
-                            log = UsageLog(
-                                user_id=user.id,
-                                model=model,
-                                endpoint="/v1/chat/completions",
-                                status_code=500,
-                                latency_ms=(time.time() - start_time) * 1000,
-                                error_message=error_msg[:2000],
-                                client_ip=client_ip,
-                                user_agent=user_agent
-                            )
-                            log_db.add(log)
-                            await log_db.commit()
+                        # 只有在未记录成功日志的情况下才记录错误日志
+                        if not log_recorded:
+                            async with async_session() as log_db:
+                                log = UsageLog(
+                                    user_id=user.id,
+                                    model=model,
+                                    endpoint="/v1/chat/completions",
+                                    status_code=500,
+                                    latency_ms=(time.time() - start_time) * 1000,
+                                    error_message=error_msg[:2000],
+                                    client_ip=client_ip,
+                                    user_agent=user_agent
+                                )
+                                log_db.add(log)
+                                await log_db.commit()
                         raise
                     finally:
                         await client.aclose()
@@ -1225,6 +1229,7 @@ async def openai_proxy(
         if is_stream:
             # 流式响应
             async def stream_generator():
+                log_recorded = False  # 标记是否已记录日志，避免重复记录
                 try:
                     async with httpx.AsyncClient(timeout=120.0) as client:
                         async with client.stream(
@@ -1235,6 +1240,7 @@ async def openai_proxy(
                             if response.status_code != 200:
                                 error = await response.aread()
                                 await log_usage(response.status_code, error_msg=error.decode()[:500])
+                                log_recorded = True
                                 yield f"data: {json.dumps({'error': error.decode()})}\n\n"
                                 return
                             
@@ -1243,10 +1249,12 @@ async def openai_proxy(
                                     yield f"{line}\n"
                     
                     await log_usage()
+                    log_recorded = True
                 except Exception as e:
                     error_str = str(e)
                     status_code = extract_status_code(error_str)
-                    await log_usage(status_code, error_msg=error_str)
+                    if not log_recorded:
+                        await log_usage(status_code, error_msg=error_str)
                     yield f"data: {json.dumps({'error': error_str})}\n\n"
             
             return StreamingResponse(
