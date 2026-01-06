@@ -11,6 +11,7 @@ from app.services.auth import get_current_admin, get_password_hash
 from app.services.credential_pool import CredentialPool
 from app.services.websocket import notify_user_update, notify_credential_update
 from app.services.error_classifier import ErrorType, ERROR_TYPE_NAMES, get_error_type_name
+from app.utils.logger import log_warning, log_error
 
 router = APIRouter(prefix="/api/admin", tags=["管理后台"])
 
@@ -445,8 +446,10 @@ async def check_duplicate_credentials(
                 token_key = token[:50] if token else None
                 if token_key:
                     token_groups[token_key].append(cred_info)
-            except:
-                pass
+            except ValueError as e:
+                log_warning("Credential", f"解密失败 {c.email}: {e}")
+            except Exception as e:
+                log_error("Credential", f"凭证去重异常 {c.email}: {e}")
     
     # 找出重复的
     duplicate_emails = {k: v for k, v in email_groups.items() if len(v) > 1}
@@ -517,8 +520,10 @@ async def delete_duplicate_credentials(
                 token_key = token[:50] if token else None
                 if token_key:
                     token_groups[token_key].append(c)
-            except:
-                pass
+            except ValueError as e:
+                log_warning("Credential", f"解密失败 {c.email}: {e}")
+            except Exception as e:
+                log_error("Credential", f"删除重复凭证异常 {c.email}: {e}")
     
     def select_best_credential(creds):
         """选择最佳凭证：优先有效的，其次最早的"""

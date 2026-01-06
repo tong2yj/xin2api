@@ -18,6 +18,7 @@ from app.services.auth import get_current_user, get_current_admin
 from app.services.crypto import encrypt_credential, decrypt_credential
 from app.services.websocket import notify_stats_update
 from app.config import settings
+from app.utils.logger import log_info, log_warning, log_error, log_success
 
 
 router = APIRouter(prefix="/api/manage", tags=["管理功能"])
@@ -390,11 +391,11 @@ async def start_all_credentials(
                     access_token = await CredentialPool.refresh_access_token(temp_cred)
                     return {"id": data["id"], "email": data["email"], "token": access_token}
                 except Exception as e:
-                    print(f"[启动凭证] ❌ {data['email']} 异常: {e}", flush=True)
+                    log_error("Credential", f"{data['email']} 异常: {e}")
                     return {"id": data["id"], "email": data["email"], "token": None}
         
         # 并发刷新
-        print(f"[启动凭证] 后台开始刷新 {total} 个凭证...", flush=True)
+        log_info("Credential", f"后台开始刷新 {total} 个凭证...")
         results = await asyncio.gather(*[refresh_single(d) for d in cred_data])
         
         # 批量更新数据库
@@ -413,16 +414,16 @@ async def start_all_credentials(
                     # 检查是否实际更新了行
                     if result.rowcount > 0:
                         success += 1
-                        print(f"[启动凭证] ✅ {res['email']}", flush=True)
+                        log_success("Credential", f"{res['email']}")
                     else:
                         failed += 1
-                        print(f"[启动凭证] ⚠️ {res['email']} Token获取成功但数据库更新失败(凭证可能已被删除)", flush=True)
+                        log_warning("Credential", f"{res['email']} Token获取成功但数据库更新失败(凭证可能已被删除)")
                 else:
                     failed += 1
             await session.commit()
         
         _background_tasks[task_id] = {"status": "done", "total": total, "success": success, "failed": failed}
-        print(f"[启动凭证] 完成: 成功 {success}, 失败 {failed}", flush=True)
+        log_success("Credential", f"完成: 成功 {success}, 失败 {failed}")
         
         # 通知前端刷新统计数据
         await notify_stats_update()
@@ -523,19 +524,27 @@ async def verify_all_credentials(
                             supports_3 = resp_3.status_code in [200, 429]
                     
                     # 检测账号类型
+                    account_type = "unknown"  # Fail Safe 默认值
                     if is_valid and data["project_id"]:
                         try:
                             type_result = await CredentialPool.detect_account_type(access_token, data["project_id"])
                             account_type = type_result.get("account_type", "unknown")
-                        except:
-                            pass
+                        except httpx.TimeoutException as e:
+                            log_warning("Credential", f"{data['email']} 超时: {e}")
+                            account_type = "unknown"
+                        except httpx.HTTPStatusError as e:
+                            log_warning("Credential", f"{data['email']} HTTP错误 {e.response.status_code}")
+                            account_type = "unknown"
+                        except Exception as e:
+                            log_error("Credential", f"检测账号类型异常 {data['email']}: {e}")
+                            account_type = "unknown"
                     
                     return {"id": data["id"], "email": data["email"], "is_valid": is_valid, "supports_3": supports_3, "account_type": account_type, "token": access_token}
                 except Exception as e:
-                    print(f"[检测] ❌ {data['email']} 异常: {e}", flush=True)
+                    log_error("Credential", f"{data['email']} 异常: {e}")
                     return {"id": data["id"], "email": data["email"], "is_valid": False, "supports_3": False, "account_type": "unknown"}
         
-        print(f"[检测凭证] 后台开始检测 {total} 个凭证...", flush=True)
+        log_info("Credential", f"后台开始检测 {total} 个凭证...")
         results = await asyncio.gather(*[verify_single(d) for d in cred_data])
         
         # 批量更新数据库
@@ -561,17 +570,17 @@ async def verify_all_credentials(
                             tier3 += 1
                         if res["account_type"] == "pro":
                             pro += 1
-                        print(f"[检测] ✅ {res['email']} tier={model_tier}", flush=True)
+                        log_success("Credential", f"{res['email']} tier={model_tier}")
                     else:
                         invalid += 1
-                        print(f"[检测] ❌ {res['email']}", flush=True)
+                        log_error("Credential", f"{res['email']}")
                 else:
-                    print(f"[检测] ⚠️ {res['email']} 数据库更新失败(凭证可能已被删除)", flush=True)
+                    log_warning("Credential", f"{res['email']} 数据库更新失败(凭证可能已被删除)")
             
             await session.commit()
         
         _background_tasks[task_id] = {"status": "done", "total": total, "valid": valid, "invalid": invalid, "tier3": tier3, "pro": pro}
-        print(f"[检测凭证] 完成: 有效 {valid}, 无效 {invalid}, 3.0 {tier3}", flush=True)
+        log_success("Credential", f"完成: 有效 {valid}, 无效 {invalid}, 3.0 {tier3}")
         
         # 通知前端刷新统计数据
         await notify_stats_update()

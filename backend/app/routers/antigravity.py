@@ -22,6 +22,7 @@ from app.services.antigravity_client import (
 )
 from app.services.crypto import decrypt_credential
 from app.config import settings
+from app.utils.logger import log_warning, log_error
 
 router = APIRouter(prefix="/antigravity", tags=["Antigravity反代"])
 
@@ -188,10 +189,10 @@ async def convert_antigravity_stream_to_openai(lines_generator, model: str, requ
                     yield "data: [DONE]\n\n"
                     break
             except Exception as e:
-                print(f"[Antigravity] 解析错误: {e}", flush=True)
+                log_error("Antigravity", f"解析错误: {e}")
                 continue
     except Exception as e:
-        print(f"[Antigravity] 流式转换错误: {e}", flush=True)
+        log_error("Antigravity", f"流式转换错误: {e}")
         error_response = {
             "error": {
                 "message": str(e),
@@ -220,10 +221,10 @@ async def convert_antigravity_stream_to_gemini(lines_generator):
                 gemini_data = data.get("response", data)
                 yield f"data: {json.dumps(gemini_data)}\n\n"
             except Exception as e:
-                print(f"[Antigravity Gemini] 解析错误: {e}", flush=True)
+                log_error("Antigravity", f"Gemini 解析错误: {e}")
                 continue
     except Exception as e:
-        print(f"[Antigravity Gemini] 流式转换错误: {e}", flush=True)
+        log_error("Antigravity", f"Gemini 流式转换错误: {e}")
         error_response = {
             "error": {
                 "message": str(e),
@@ -590,7 +591,7 @@ async def list_antigravity_models(request: Request, db: AsyncSession = Depends(g
                     "owned_by": "google"
                 })
     except Exception as e:
-        print(f"[Antigravity] 获取模型列表失败: {e}", flush=True)
+        log_warning("Antigravity", f"获取模型列表失败: {e}")
         # 返回默认模型列表
         model_list = [
             {"id": "gemini-2.5-flash", "object": "model", "created": int(time.time()), "owned_by": "google"},
@@ -628,7 +629,7 @@ async def gemini_list_models(request: Request, db: AsyncSession = Depends(get_db
                     "supportedGenerationMethods": ["generateContent", "streamGenerateContent"],
                 })
     except Exception as e:
-        print(f"[Antigravity Gemini] 获取模型列表失败: {e}", flush=True)
+        log_warning("Antigravity", f"Gemini 获取模型列表失败: {e}")
         # 返回默认模型列表
         gemini_models = [
             {"name": "models/gemini-2.5-flash", "version": "001", "displayName": "gemini-2.5-flash",

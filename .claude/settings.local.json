@@ -27,7 +27,11 @@
       "Bash(curl:*)",
       "Bash(grep:*)",
       "Bash(cd:*)",
-      "Bash(docker system prune:*)"
+      "Bash(docker system prune:*)",
+      "Bash(npm audit:*)",
+      "Bash(del:*)",
+      "Bash(git rm:*)",
+      "Bash(rm:*)"
     ]
   }
 }

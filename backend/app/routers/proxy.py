@@ -15,6 +15,7 @@ from app.services.gemini_client import GeminiClient
 from app.services.websocket import notify_log_update, notify_stats_update
 from app.services.error_classifier import classify_error_simple, ErrorType
 from app.config import settings
+from app.utils.logger import log_info, log_warning, log_error, log_credential_usage
 import re
 import httpx
 
@@ -62,16 +63,16 @@ async def get_user_from_api_key(request: Request, db: AsyncSession = Depends(get
         api_key = request.query_params.get("key")
 
     if not api_key:
-        print(f"[Auth] 未提供API Key")
+        log_warning("Auth", "未提供API Key")
         raise HTTPException(status_code=401, detail="未提供API Key")
 
     user = await get_user_by_api_key(db, api_key)
     if not user:
-        print(f"[Auth] 无效的API Key: {api_key[:10]}...")
+        log_warning("Auth", f"无效的API Key: {api_key[:10]}...")
         raise HTTPException(status_code=401, detail="无效的API Key")
 
     if not user.is_active:
-        print(f"[Auth] 账户已被禁用: {user.username}")
+        log_warning("Auth", f"账户已被禁用: {user.username}")
         raise HTTPException(status_code=403, detail="账户已被禁用")
 
     # GET 请求（如 /v1/models）不需要检查配额
@@ -91,7 +92,7 @@ async def get_user_from_api_key(request: Request, db: AsyncSession = Depends(get
     body = await request.json()
     model = body.get("model", "gemini-2.5-flash")
 
-    print(f"[Auth] User: {user.username}, Model: {model}, Quota: {user.daily_quota}")
+    log_info("Auth", f"User: {user.username}, Model: {model}, Quota: {user.daily_quota}")
 
     # 所有用户都可以使用所有模型，不再检查凭证等级限制
     # 只通过次数配额来限制使用
@@ -106,13 +107,13 @@ async def get_user_from_api_key(request: Request, db: AsyncSession = Depends(get
 
     # 检查是否超过配额
     if current_usage >= user.daily_quota:
-        print(f"[Auth] 配额已用尽: {user.username}, {current_usage}/{user.daily_quota}")
+        log_warning("Auth", f"配额已用尽: {user.username}, {current_usage}/{user.daily_quota}")
         raise HTTPException(
             status_code=429,
             detail=f"已达到每日配额限制 ({current_usage}/{user.daily_quota})"
         )
 
-    print(f"[Auth] 验证通过: {user.username}, 已用: {current_usage}/{user.daily_quota}")
+    log_info("Auth", f"验证通过: {user.username}, 已用: {current_usage}/{user.daily_quota}")
     return user
 
 
@@ -266,7 +267,7 @@ async def handle_openai_endpoint(request: Request, user: User, db: AsyncSession,
             db.add(log)
             await db.commit()
 
-            print(f"[OpenAI Endpoint] ❌ {endpoint.name} 失败: {last_error}", flush=True)
+            log_error("OpenAI Endpoint", f"{endpoint.name} 失败: {last_error}")
             continue
 
         except Exception as e:
@@ -289,7 +290,7 @@ async def handle_openai_endpoint(request: Request, user: User, db: AsyncSession,
             db.add(log)
             await db.commit()
 
-            print(f"[OpenAI Endpoint] ❌ {endpoint.name} 异常: {last_error}", flush=True)
+            log_error("OpenAI Endpoint", f"{endpoint.name} 异常: {last_error}")
             continue
 
     # 所有端点都失败了
@@ -413,8 +414,12 @@ async def chat_completions(
 
     try:
         body = await request.json()
-    except:
-        raise HTTPException(status_code=400, detail="无效的JSON请求体")
+    except json.JSONDecodeError as e:
+        log_error("Proxy", f"JSON 解析错误: {e}")
+        raise HTTPException(status_code=400, detail=f"无效的JSON请求体: {str(e)}")
+    except Exception as e:
+        log_error("Proxy", f"请求体读取失败: {e}")
+        raise HTTPException(status_code=500, detail="请求处理失败")
 
     # 保存请求内容摘要（截断到2000字符）
     request_body_str = json.dumps(body, ensure_ascii=False)[:2000] if body else None
@@ -514,15 +519,15 @@ async def chat_completions(
         if not access_token:
             await CredentialPool.mark_credential_error(db, credential.id, "Token 刷新失败")
             last_error = "Token 刷新失败"
-            print(f"[Proxy] ⚠️ 凭证 {credential.email} Token 刷新失败，尝试下一个凭证 ({retry_attempt + 1}/{max_retries + 1})", flush=True)
+            log_warning("Proxy", f"凭证 {credential.email} Token 刷新失败，尝试下一个凭证 ({retry_attempt + 1}/{max_retries + 1})")
             continue
-        
+
         # 获取 project_id
         project_id = credential.project_id or ""
-        print(f"[Proxy] 使用凭证: {credential.email}, project_id: {project_id}, model: {model} (尝试 {retry_attempt + 1}/{max_retries + 1})", flush=True)
-        
+        log_credential_usage("Proxy", credential.email, model, project_id, attempt=f"{retry_attempt + 1}/{max_retries + 1}")
+
         if not project_id:
-            print(f"[Proxy] ⚠️ 凭证 {credential.email} 没有 project_id!", flush=True)
+            log_warning("Proxy", f"凭证 {credential.email} 没有 project_id!")
         
         client = GeminiClient(access_token, project_id)
         
@@ -634,9 +639,9 @@ async def chat_completions(
                             "created_at": datetime.utcnow().isoformat()
                         })
                         await notify_stats_update()
-                        print(f"[Proxy] ✅ 流式日志已记录: user={user.username}, model={model}, status={status_code}", flush=True)
+                        log_info("Proxy", f"流式日志已记录: user={user.username}, model={model}, status={status_code}")
                     except Exception as log_err:
-                        print(f"[Proxy] ❌ 流式日志记录失败: {log_err}", flush=True)
+                        log_error("Proxy", f"流式日志记录失败: {log_err}")
                 
                 async def stream_generator_with_retry():
                     nonlocal credential, access_token, project_id, client, tried_credential_ids, last_error
@@ -664,8 +669,8 @@ async def chat_completions(
                             should_retry = any(code in error_str for code in ["404", "500", "503", "429", "RESOURCE_EXHAUSTED", "NOT_FOUND", "ECONNRESET", "socket hang up", "ConnectionReset", "Connection reset", "ETIMEDOUT", "ECONNREFUSED"])
                             
                             if should_retry and stream_retry < max_retries:
-                                print(f"[Proxy] ⚠️ 流式请求失败: {error_str}，切换凭证重试 ({stream_retry + 2}/{max_retries + 1})", flush=True)
-                                
+                                log_warning("Proxy", f"流式请求失败: {error_str}，切换凭证重试 ({stream_retry + 2}/{max_retries + 1})")
+
                                 # 使用独立会话获取新凭证
                                 async with async_session() as retry_db:
                                     new_credential = await CredentialPool.get_available_credential(
@@ -680,7 +685,7 @@ async def chat_completions(
                                             access_token = new_token
                                             project_id = new_credential.project_id or ""
                                             client = GeminiClient(access_token, project_id)
-                                            print(f"[Proxy] 🔄 切换到凭证: {credential.email}", flush=True)
+                                            log_info("Proxy", f"切换到凭证: {credential.email}")
                                             continue
                             
                             # 无法重试，输出错误并记录日志
@@ -713,7 +718,7 @@ async def chat_completions(
             should_retry = any(code in error_str for code in ["404", "500", "503", "429", "RESOURCE_EXHAUSTED", "NOT_FOUND", "ECONNRESET", "socket hang up", "ConnectionReset", "Connection reset", "ETIMEDOUT", "ECONNREFUSED"])
             
             if should_retry and retry_attempt < max_retries:
-                print(f"[Proxy] ⚠️ 请求失败: {error_str}，切换凭证重试 ({retry_attempt + 2}/{max_retries + 1})", flush=True)
+                log_warning("Proxy", f"请求失败: {error_str}，切换凭证重试 ({retry_attempt + 2}/{max_retries + 1})")
                 continue
             
             status_code = extract_status_code(error_str)
@@ -776,12 +781,16 @@ async def gemini_generate_content(
 ):
     """Gemini 原生 generateContent 接口"""
     start_time = time.time()
-    
+
     try:
         body = await request.json()
-    except:
-        raise HTTPException(status_code=400, detail="无效的JSON请求体")
-    
+    except json.JSONDecodeError as e:
+        log_error("Gemini API", f"generateContent JSON 解析错误: {e}")
+        raise HTTPException(status_code=400, detail=f"无效的JSON请求体: {str(e)}")
+    except Exception as e:
+        log_error("Gemini API", f"generateContent 请求体读取失败: {e}")
+        raise HTTPException(status_code=500, detail="请求处理失败")
+
     contents = body.get("contents", [])
     if not contents:
         raise HTTPException(status_code=400, detail="contents不能为空")
@@ -819,7 +828,7 @@ async def gemini_generate_content(
         raise HTTPException(status_code=503, detail="凭证已失效")
     
     project_id = credential.project_id or ""
-    print(f"[Gemini API] 使用凭证: {credential.email}, project_id: {project_id}, model: {model}", flush=True)
+    log_credential_usage("Gemini API", credential.email, model, project_id)
     
     # 记录日志
     async def log_usage(status_code: int = 200, cd_seconds: int = None, error_msg: str = None):
@@ -862,7 +871,7 @@ async def gemini_generate_content(
             # 当 topK 为 0 或无效值时，使用最大默认值 64；超过 64 时也锁定为 64
             if isinstance(gen_config, dict) and "topK" in gen_config:
                 if gen_config["topK"] is not None and (gen_config["topK"] < 1 or gen_config["topK"] > 64):
-                    print(f"[Gemini API] ⚠️ topK={gen_config['topK']} 超出有效范围(1-64)，已自动调整为 64", flush=True)
+                    log_warning("Gemini API", f"topK={gen_config['topK']} 超出有效范围(1-64)，已自动调整为 64")
                     gen_config["topK"] = 64
             request_body["generationConfig"] = gen_config
         if "systemInstruction" in body:
@@ -883,7 +892,7 @@ async def gemini_generate_content(
             
             if response.status_code != 200:
                 error_text = response.text[:500]
-                print(f"[Gemini API] ❌ 错误 {response.status_code}: {error_text}", flush=True)
+                log_error("Gemini API", f"错误 {response.status_code}: {error_text}")
                 # 401/403 错误自动禁用凭证
                 if response.status_code in [401, 403]:
                     await CredentialPool.handle_credential_failure(db, credential.id, f"API Error {response.status_code}: {error_text}")
@@ -930,12 +939,16 @@ async def gemini_stream_generate_content(
 ):
     """Gemini 原生 streamGenerateContent 接口"""
     start_time = time.time()
-    
+
     try:
         body = await request.json()
-    except:
-        raise HTTPException(status_code=400, detail="无效的JSON请求体")
-    
+    except json.JSONDecodeError as e:
+        log_error("Gemini API", f"streamGenerateContent JSON 解析错误: {e}")
+        raise HTTPException(status_code=400, detail=f"无效的JSON请求体: {str(e)}")
+    except Exception as e:
+        log_error("Gemini API", f"streamGenerateContent 请求体读取失败: {e}")
+        raise HTTPException(status_code=500, detail="请求处理失败")
+
     contents = body.get("contents", [])
     if not contents:
         raise HTTPException(status_code=400, detail="contents不能为空")
@@ -973,7 +986,7 @@ async def gemini_stream_generate_content(
         raise HTTPException(status_code=503, detail="凭证已失效")
     
     project_id = credential.project_id or ""
-    print(f"[Gemini Stream] 使用凭证: {credential.email}, project_id: {project_id}, model: {model}", flush=True)
+    log_credential_usage("Gemini Stream", credential.email, model, project_id)
     
     # 记录日志 - 使用独立会话，避免流式响应后 db 会话被关闭的问题
     async def log_usage(status_code: int = 200, cd_seconds: int = None, error_msg: str = None):
@@ -1025,9 +1038,9 @@ async def gemini_stream_generate_content(
                 "created_at": datetime.utcnow().isoformat()
             })
             await notify_stats_update()
-            print(f"[Gemini Stream] ✅ 流式日志已记录: user={user.username}, model={model}, status={status_code}", flush=True)
+            log_info("Gemini Stream", f"流式日志已记录: user={user.username}, model={model}, status={status_code}")
         except Exception as log_err:
-            print(f"[Gemini Stream] ❌ 流式日志记录失败: {log_err}", flush=True)
+            log_error("Gemini Stream", f"流式日志记录失败: {log_err}")
     
     # 流式转发
     import httpx
@@ -1040,7 +1053,7 @@ async def gemini_stream_generate_content(
         # 当 topK 为 0 或无效值时，使用最大默认值 64；超过 64 时也锁定为 64
         if isinstance(gen_config, dict) and "topK" in gen_config:
             if gen_config["topK"] is not None and (gen_config["topK"] < 1 or gen_config["topK"] > 64):
-                print(f"[Gemini Stream] ⚠️ topK={gen_config['topK']} 超出有效范围(1-64)，已自动调整为 64", flush=True)
+                log_warning("Gemini Stream", f"topK={gen_config['topK']} 超出有效范围(1-64)，已自动调整为 64")
                 gen_config["topK"] = 64
         request_body["generationConfig"] = gen_config
     if "systemInstruction" in body:
@@ -1063,7 +1076,7 @@ async def gemini_stream_generate_content(
                     if response.status_code != 200:
                         error = await response.aread()
                         error_text = error.decode()[:500]
-                        print(f"[Gemini Stream] ❌ 错误 {response.status_code}: {error_text}", flush=True)
+                        log_error("Gemini Stream", f"错误 {response.status_code}: {error_text}")
                         # 使用独立会话处理凭证失败
                         async with async_session() as err_db:
                             # 401/403 错误自动禁用凭证
@@ -1202,10 +1215,11 @@ async def openai_proxy(
         try:
             body_json = json.loads(body)
             is_stream = body_json.get("stream", False)
-        except:
-            pass
-    
-    print(f"[OpenAI Proxy] {request.method} {target_url}, stream={is_stream}", flush=True)
+        except (json.JSONDecodeError, TypeError, AttributeError) as e:
+            log_warning("OpenAI Proxy", f"流式判断失败: {e}")
+            is_stream = False
+
+    log_info("OpenAI Proxy", f"{request.method} {target_url}, stream={is_stream}")
     
     try:
         if is_stream:

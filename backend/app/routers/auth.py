@@ -12,6 +12,7 @@ from app.services.auth import (
     get_current_user
 )
 from app.config import settings
+from app.utils.logger import log_info, log_warning, log_error, log_success, log_db_operation
 
 router = APIRouter(prefix="/api/auth", tags=["认证"])
 
@@ -58,20 +59,25 @@ async def register(data: UserRegister, db: AsyncSession = Depends(get_db)):
         raise HTTPException(status_code=400, detail="用户名已存在")
     
     # 创建用户
-    user = User(
-        username=data.username,
-        email=data.email,
-        hashed_password=get_password_hash(data.password),
-        daily_quota=settings.default_daily_quota
-    )
-    db.add(user)
-    await db.commit()
-    await db.refresh(user)
-    
-    # 自动创建一个API Key
-    api_key = APIKey(user_id=user.id, key=APIKey.generate_key(), name="default")
-    db.add(api_key)
-    await db.commit()
+    try:
+        user = User(
+            username=data.username,
+            email=data.email,
+            hashed_password=get_password_hash(data.password),
+            daily_quota=settings.default_daily_quota
+        )
+        db.add(user)
+        await db.commit()
+        await db.refresh(user)
+
+        # 自动创建一个API Key
+        api_key = APIKey(user_id=user.id, key=APIKey.generate_key(), name="default")
+        db.add(api_key)
+        await db.commit()
+    except Exception as e:
+        await db.rollback()
+        log_error("Auth", f"用户注册失败: {e}", exc_info=e)
+        raise HTTPException(status_code=500, detail=f"注册失败: {str(e)[:100]}")
     
     # 生成token
     token = create_access_token(data={"sub": user.username})
@@ -215,11 +221,16 @@ async def create_api_key(
     count = result.scalar() or 0
     if count >= 5:
         raise HTTPException(status_code=400, detail="最多只能创建5个API Key")
-    
-    api_key = APIKey(user_id=user.id, key=APIKey.generate_key(), name=data.name)
-    db.add(api_key)
-    await db.commit()
-    await db.refresh(api_key)
+
+    try:
+        api_key = APIKey(user_id=user.id, key=APIKey.generate_key(), name=data.name)
+        db.add(api_key)
+        await db.commit()
+        await db.refresh(api_key)
+    except Exception as e:
+        await db.rollback()
+        log_error("Auth", f"API Key 创建失败: {e}", exc_info=e)
+        raise HTTPException(status_code=500, detail=f"创建失败: {str(e)[:100]}")
     
     return APIKeyResponse(
         id=api_key.id,
@@ -244,9 +255,15 @@ async def delete_api_key(
     api_key = result.scalar_one_or_none()
     if not api_key:
         raise HTTPException(status_code=404, detail="API Key不存在")
-    
-    await db.delete(api_key)
-    await db.commit()
+
+    try:
+        await db.delete(api_key)
+        await db.commit()
+    except Exception as e:
+        await db.rollback()
+        log_error("Auth", f"API Key 删除失败: {e}", exc_info=e)
+        raise HTTPException(status_code=500, detail=f"删除失败: {str(e)[:100]}")
+
     return {"message": "删除成功"}
 
 
@@ -263,11 +280,16 @@ async def regenerate_api_key(
     api_key = result.scalar_one_or_none()
     if not api_key:
         raise HTTPException(status_code=404, detail="API Key不存在")
-    
-    # 生成新的 key
-    api_key.key = APIKey.generate_key()
-    await db.commit()
-    await db.refresh(api_key)
+
+    try:
+        # 生成新的 key
+        api_key.key = APIKey.generate_key()
+        await db.commit()
+        await db.refresh(api_key)
+    except Exception as e:
+        await db.rollback()
+        log_error("Auth", f"API Key 重新生成失败: {e}", exc_info=e)
+        raise HTTPException(status_code=500, detail=f"重新生成失败: {str(e)[:100]}")
     
     return APIKeyResponse(
         id=api_key.id,
@@ -451,7 +473,7 @@ async def upload_credentials(
                 else:
                     reward = settings.quota_flash + settings.quota_25pro
                 user.daily_quota += reward
-                print(f"[上传凭证] 用户 {user.username} 获得 {reward} 额度奖励 (等级: {model_tier})", flush=True)
+                log_info("Credential", f"用户 {user.username} 获得 {reward} 额度奖励 (等级: {model_tier})")
             
             status_msg = f"上传成功 {verify_msg}"
             if is_public and not is_valid:
@@ -463,9 +485,14 @@ async def upload_credentials(
             if success_count % 50 == 0:
                 try:
                     await db.commit()
-                    print(f"[批量上传] 已提交 {success_count} 个凭证", flush=True)
+                    log_info("Batch Upload", f"已提交 {success_count} 个凭证")
                 except Exception as commit_err:
-                    print(f"[批量上传] 提交失败: {commit_err}", flush=True)
+                    await db.rollback()
+                    log_error("Batch Upload", f"批量提交失败: {commit_err}", exc_info=commit_err)
+                    raise HTTPException(
+                        status_code=500,
+                        detail=f"数据保存失败（已保存 {success_count} 个）: {str(commit_err)[:100]}"
+                    )
             
         except json.JSONDecodeError:
             results.append({"filename": filename, "status": "error", "message": "JSON 格式错误"})
@@ -475,16 +502,15 @@ async def upload_credentials(
     # 最终提交剩余的
     try:
         await db.commit()
-        print(f"[批量上传] 最终提交完成，共 {success_count} 个凭证", flush=True)
+        log_success("Batch Upload", f"最终提交完成，共 {success_count} 个凭证")
     except Exception as final_err:
-        print(f"[批量上传] 最终提交失败: {final_err}", flush=True)
-        # 尝试回滚后重新提交
-        try:
-            await db.rollback()
-            await db.commit()
-        except:
-            pass
-    
+        await db.rollback()
+        log_error("Batch Upload", f"最终提交失败: {final_err}", exc_info=final_err)
+        raise HTTPException(
+            status_code=500,
+            detail=f"数据保存失败（已保存 {success_count} 个）: {str(final_err)[:100]}"
+        )
+
     return {"uploaded_count": success_count, "total_count": len(json_files), "results": results}
 
 
@@ -561,7 +587,7 @@ async def update_my_credential(
                 else:
                     reward = settings.quota_flash + settings.quota_25pro
                 user.daily_quota += reward
-                print(f"[凭证捐赠] 用户 {user.username} 获得 {reward} 额度奖励 (等级: {cred.model_tier})", flush=True)
+                log_info("Credential", f"用户 {user.username} 获得 {reward} 额度奖励 (等级: {cred.model_tier})")
         else:
             # 取消捐赠
             if cred.is_public:
@@ -579,13 +605,19 @@ async def update_my_credential(
                         settings.default_daily_quota,
                         user.daily_quota - deduct,
                     )
-                print(f"[取消捐赠] 用户 {user.username} 扣除 {deduct} 额度 (等级: {cred.model_tier})", flush=True)
+                log_info("Credential", f"用户 {user.username} 扣除 {deduct} 额度 (等级: {cred.model_tier})")
         cred.is_public = is_public
     if is_active is not None:
         # 手动启用时清除错误（但不清除403错误记录）
         cred.is_active = is_active
-    
-    await db.commit()
+
+    try:
+        await db.commit()
+    except Exception as e:
+        await db.rollback()
+        log_error("Credential", f"凭证更新失败: {e}", exc_info=e)
+        raise HTTPException(status_code=500, detail=f"更新失败: {str(e)[:100]}")
+
     return {"message": "更新成功", "is_public": cred.is_public, "is_active": cred.is_active}
 
 
@@ -615,14 +647,20 @@ async def delete_my_credential(
                 settings.default_daily_quota,
                 user.daily_quota - deduct,
             )
-            print(f"[删除凭证] 用户 {user.username} 扣除 {deduct} 额度 (等级: {cred.model_tier})", flush=True)
-    
-    # 先解除使用记录的外键引用，避免外键约束导致删除失败
-    await db.execute(
-        update(UsageLog).where(UsageLog.credential_id == cred_id).values(credential_id=None)
-    )
-    await db.delete(cred)
-    await db.commit()
+            log_info("Credential", f"用户 {user.username} 扣除 {deduct} 额度 (等级: {cred.model_tier})")
+
+    try:
+        # 先解除使用记录的外键引用，避免外键约束导致删除失败
+        await db.execute(
+            update(UsageLog).where(UsageLog.credential_id == cred_id).values(credential_id=None)
+        )
+        await db.delete(cred)
+        await db.commit()
+    except Exception as e:
+        await db.rollback()
+        log_error("Credential", f"凭证删除失败: {e}", exc_info=e)
+        raise HTTPException(status_code=500, detail=f"删除失败: {str(e)[:100]}")
+
     return {"message": "删除成功"}
 
 
@@ -659,19 +697,27 @@ async def delete_my_inactive_credentials(
         if deleted_count % 100 == 0:
             try:
                 await db.commit()
-                print(f"[批量删除] 已删除 {deleted_count} 个凭证", flush=True)
+                log_info("Batch Delete", f"已删除 {deleted_count} 个凭证")
             except Exception as e:
-                print(f"[批量删除] 提交失败: {e}", flush=True)
                 await db.rollback()
+                log_error("Batch Delete", f"批量删除提交失败: {e}", exc_info=e)
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"批量删除失败（已删除 {deleted_count} 个）: {str(e)[:100]}"
+                )
     
     # 最终提交
     try:
         await db.commit()
     except Exception as e:
-        print(f"[批量删除] 最终提交失败: {e}", flush=True)
         await db.rollback()
-    
-    print(f"[批量删除] 用户 {user.username} 删除了 {deleted_count} 个失效凭证", flush=True)
+        log_error("Batch Delete", f"批量删除最终提交失败: {e}", exc_info=e)
+        raise HTTPException(
+            status_code=500,
+            detail=f"批量删除失败（已删除 {deleted_count} 个）: {str(e)[:100]}"
+        )
+
+    log_success("Batch Delete", f"用户 {user.username} 删除了 {deleted_count} 个失效凭证")
     return {"message": f"已删除 {deleted_count} 个失效凭证", "deleted_count": deleted_count}
 
 
@@ -716,7 +762,7 @@ async def verify_my_credential(
     from app.services.credential_pool import CredentialPool
     
     try:
-        print(f"[凭证检测] 开始检测凭证 {cred_id}", flush=True)
+        log_info("Credential", f"开始检测凭证 {cred_id}")
         
         result = await db.execute(
             select(Credential).where(Credential.id == cred_id, Credential.user_id == user.id)
@@ -725,27 +771,35 @@ async def verify_my_credential(
         if not cred:
             return {"is_valid": False, "model_tier": "2.5", "error": "凭证不存在", "supports_3": False}
         
-        print(f"[凭证检测] 凭证 {cred.email} 开始获取 token", flush=True)
+        log_info("Credential", f"凭证 {cred.email} 开始获取 token")
         
         # 获取 access token
         try:
             access_token = await CredentialPool.get_access_token(cred, db)
         except Exception as e:
-            print(f"[凭证检测] 获取 token 异常: {e}", flush=True)
+            log_warning("Credential", f"获取 token 异常: {e}")
             cred.is_active = False
             cred.last_error = f"获取 token 异常: {str(e)[:50]}"
-            await db.commit()
+            try:
+                await db.commit()
+            except Exception as commit_err:
+                await db.rollback()
+                log_error("Credential", f"凭证状态更新失败: {commit_err}", exc_info=commit_err)
             return {
                 "is_valid": False,
                 "model_tier": cred.model_tier or "2.5",
                 "error": f"获取 token 异常: {str(e)[:50]}",
                 "supports_3": False
             }
-        
+
         if not access_token:
             cred.is_active = False
             cred.last_error = "无法获取 access token"
-            await db.commit()
+            try:
+                await db.commit()
+            except Exception as commit_err:
+                await db.rollback()
+                log_error("Credential", f"凭证状态更新失败: {commit_err}", exc_info=commit_err)
             return {
                 "is_valid": False,
                 "model_tier": cred.model_tier or "2.5",
@@ -753,7 +807,7 @@ async def verify_my_credential(
                 "supports_3": False
             }
         
-        print(f"[凭证检测] 获取到 token，开始测试", flush=True)
+        log_info("Credential", "获取到 token，开始测试")
         
         # 先检测账号类型（无论 API 是否可用）
         account_type = "unknown"
@@ -762,9 +816,9 @@ async def verify_my_credential(
             try:
                 type_result = await CredentialPool.detect_account_type(access_token, cred.project_id)
                 account_type = type_result.get("account_type", "unknown")
-                print(f"[凭证检测] 账号类型检测结果: {type_result}", flush=True)
+                log_info("Credential", f"账号类型检测结果: {type_result}")
             except Exception as e:
-                print(f"[凭证检测] 检测账号类型失败: {e}", flush=True)
+                log_warning("Credential", f"检测账号类型失败: {e}")
         
         # 测试 Gemini API
         is_valid = False
@@ -784,7 +838,7 @@ async def verify_my_credential(
                     "request": {"contents": [{"role": "user", "parts": [{"text": "hi"}]}]}
                 }
                 resp = await client.post(test_url, headers=headers, json=test_payload_25)
-                print(f"[凭证检测] gemini-2.5-flash 响应: {resp.status_code}", flush=True)
+                log_info("Credential", f"gemini-2.5-flash 响应: {resp.status_code}")
                 
                 if resp.status_code == 200 or resp.status_code == 429:
                     is_valid = True
@@ -797,7 +851,7 @@ async def verify_my_credential(
                         "request": {"contents": [{"role": "user", "parts": [{"text": "hi"}]}]}
                     }
                     resp3 = await client.post(test_url, headers=headers, json=test_payload_3)
-                    print(f"[凭证检测] gemini-3-pro-preview 响应: {resp3.status_code}", flush=True)
+                    log_info("Credential", f"gemini-3-pro-preview 响应: {resp3.status_code}")
                     
                     if resp3.status_code == 200 or resp3.status_code == 429:
                         supports_3 = True
@@ -818,12 +872,19 @@ async def verify_my_credential(
             cred.account_type = account_type
         # last_error 只存储真正的错误信息
         cred.last_error = error_msg if error_msg else None
-        await db.commit()
+
+        try:
+            await db.commit()
+        except Exception as e:
+            await db.rollback()
+            log_error("Credential", f"凭证验证结果保存失败: {e}", exc_info=e)
+            # 即使保存失败，也返回验证结果
+            pass
         
         # 获取存储空间信息
         storage_gb = type_result.get("storage_gb") if type_result else None
         
-        print(f"[凭证检测] 完成: valid={is_valid}, tier={cred.model_tier}, type={account_type}, storage={storage_gb}GB", flush=True)
+        log_success("Credential", f"完成: valid={is_valid}, tier={cred.model_tier}, type={account_type}, storage={storage_gb}GB")
         
         return {
             "is_valid": is_valid,
@@ -834,7 +895,7 @@ async def verify_my_credential(
             "error": error_msg
         }
     except Exception as e:
-        print(f"[凭证检测] 严重异常: {e}", flush=True)
+        log_error("Credential", f"严重异常: {e}", exc_info=e)
         return {
             "is_valid": False,
             "model_tier": "2.5",
@@ -854,7 +915,7 @@ async def refresh_credential_project_id(
     from app.services.credential_pool import CredentialPool, fetch_project_id
     
     try:
-        print(f"[刷新项目ID] 开始刷新凭证 {cred_id} 的 project_id", flush=True)
+        log_info("Credential", f"开始刷新凭证 {cred_id} 的 project_id")
         
         result = await db.execute(
             select(Credential).where(Credential.id == cred_id, Credential.user_id == user.id)
@@ -867,13 +928,13 @@ async def refresh_credential_project_id(
         try:
             access_token = await CredentialPool.get_access_token(cred, db)
         except Exception as e:
-            print(f"[刷新项目ID] 获取 token 异常: {e}", flush=True)
+            log_warning("Credential", f"获取 token 异常: {e}")
             return {"success": False, "error": f"获取 token 失败: {str(e)[:50]}", "project_id": cred.project_id}
         
         if not access_token:
             return {"success": False, "error": "无法获取 access token", "project_id": cred.project_id}
         
-        print(f"[刷新项目ID] 获取到 token，开始获取 project_id", flush=True)
+        log_info("Credential", "获取到 token，开始获取 project_id")
         
         # 使用 fetch_project_id 方法获取 project_id
         new_project_id = None
@@ -884,13 +945,13 @@ async def refresh_credential_project_id(
                 api_base_url="https://cloudcode-pa.googleapis.com"
             )
             if new_project_id:
-                print(f"[刷新项目ID] ✅ fetch_project_id 获取到: {new_project_id}", flush=True)
+                log_success("Credential", f"fetch_project_id 获取到: {new_project_id}")
         except Exception as e:
-            print(f"[刷新项目ID] fetch_project_id 失败: {e}", flush=True)
+            log_warning("Credential", f"fetch_project_id 失败: {e}")
         
         # 如果 fetch_project_id 失败，回退到 Cloud Resource Manager API
         if not new_project_id:
-            print(f"[刷新项目ID] 回退到 Cloud Resource Manager API...", flush=True)
+            log_info("Credential", "回退到 Cloud Resource Manager API...")
             try:
                 async with httpx.AsyncClient(timeout=15) as client:
                     projects_response = await client.get(
@@ -909,19 +970,25 @@ async def refresh_credential_project_id(
                                 break
                         if not new_project_id:
                             new_project_id = projects[0].get("projectId", "")
-                        print(f"[刷新项目ID] ✅ Cloud Resource Manager 获取到: {new_project_id}", flush=True)
+                        log_success("Credential", f"Cloud Resource Manager 获取到: {new_project_id}")
             except Exception as e:
-                print(f"[刷新项目ID] Cloud Resource Manager 失败: {e}", flush=True)
+                log_warning("Credential", f"Cloud Resource Manager 失败: {e}")
         
         if not new_project_id:
             return {"success": False, "error": "无法获取 project_id", "project_id": cred.project_id}
-        
+
         # 更新数据库
         old_project_id = cred.project_id
         cred.project_id = new_project_id
-        await db.commit()
-        
-        print(f"[刷新项目ID] 完成: {old_project_id} -> {new_project_id}", flush=True)
+
+        try:
+            await db.commit()
+        except Exception as e:
+            await db.rollback()
+            log_error("Credential", f"项目ID更新失败: {e}", exc_info=e)
+            return {"success": False, "error": f"更新失败: {str(e)[:50]}", "project_id": old_project_id}
+
+        log_success("Credential", f"完成: {old_project_id} -> {new_project_id}")
         
         return {
             "success": True,
@@ -931,7 +998,7 @@ async def refresh_credential_project_id(
         }
         
     except Exception as e:
-        print(f"[刷新项目ID] 严重异常: {e}", flush=True)
+        log_error("Credential", f"严重异常: {e}", exc_info=e)
         return {"success": False, "error": f"刷新异常: {str(e)[:50]}", "project_id": None}
 
 

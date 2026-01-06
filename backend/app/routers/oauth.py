@@ -13,6 +13,7 @@ from app.models.user import User, Credential
 from app.services.auth import get_current_user, get_current_admin
 from app.config import settings
 from app.services.credential_pool import fetch_project_id
+from app.utils.logger import log_info, log_warning, log_error, log_success
 
 router = APIRouter(prefix="/api/oauth", tags=["OAuth认证"])
 
@@ -223,14 +224,14 @@ async def credential_from_callback_url(
     from urllib.parse import urlparse, parse_qs
     
     import sys
-    print(f"收到回调URL: {data.callback_url}", flush=True)  # 调试
+    log_info("OAuth", f"收到回调URL: {data.callback_url}")
     
     try:
         parsed = urlparse(data.callback_url)
         params = parse_qs(parsed.query)
         
         code = params.get("code", [None])[0]
-        print(f"解析到code: {code[:20] if code else 'None'}...", flush=True)  # 调试
+        log_info("OAuth", f"解析到code: {code[:20] if code else 'None'}...")
         
         if not code:
             raise HTTPException(status_code=400, detail="URL 中未找到 code 参数")
@@ -259,7 +260,7 @@ async def credential_from_callback_url(
             )
             token_data = token_response.json()
         
-        print(f"Token response: {token_data}", flush=True)  # 调试日志
+        log_info("OAuth", f"Token response: {token_data}")
         
         if "error" in token_data:
             error_msg = token_data.get("error_description") or token_data.get("error", "获取 token 失败")
@@ -296,13 +297,13 @@ async def credential_from_callback_url(
                 api_base_url=api_base_url
             )
             if project_id:
-                print(f"[fetch_project_id] ✅ 获取到 project_id: {project_id}", flush=True)
+                log_success("OAuth", f"获取到 project_id: {project_id}")
         except Exception as e:
-            print(f"[fetch_project_id] ⚠️ 获取失败: {e}", flush=True)
+            log_warning("OAuth", f"获取失败: {e}")
         
         # 如果新方法失败，回退到 Cloud Resource Manager API
         if not project_id:
-            print(f"[project_id] 回退到 Cloud Resource Manager API...", flush=True)
+            log_info("OAuth", "回退到 Cloud Resource Manager API...")
             try:
                 async with httpx.AsyncClient() as client:
                     projects_response = await client.get(
@@ -321,9 +322,9 @@ async def credential_from_callback_url(
                                 break
                         if not project_id:
                             project_id = projects[0].get("projectId", "")
-                        print(f"[Cloud Resource Manager] 获取到 project_id: {project_id}", flush=True)
+                        log_success("OAuth", f"获取到 project_id: {project_id}")
             except Exception as e:
-                print(f"[Cloud Resource Manager] 获取项目列表失败: {e}", flush=True)
+                log_warning("OAuth", f"获取项目列表失败: {e}")
         
         # 如果获取到了 project_id，尝试启用必需的 API 服务
         if project_id:
@@ -342,13 +343,13 @@ async def credential_from_callback_url(
                                 json={}
                             )
                             if enable_response.status_code in [200, 201]:
-                                print(f"✅ 已启用服务: {service}", flush=True)
+                                log_success("OAuth", f"已启用服务: {service}")
                             else:
-                                print(f"⚠️ 启用服务 {service}: {enable_response.status_code}", flush=True)
+                                log_warning("OAuth", f"启用服务 {service}: {enable_response.status_code}")
                         except Exception as se:
-                            print(f"启用服务 {service} 失败: {se}", flush=True)
+                            log_warning("OAuth", f"启用服务 {service} 失败: {se}")
             except Exception as e:
-                print(f"启用服务失败: {e}", flush=True)
+                log_warning("OAuth", f"启用服务失败: {e}")
         
         # 检查是否已存在相同邮箱的凭证（去重）
         from sqlalchemy import select
@@ -371,7 +372,7 @@ async def credential_from_callback_url(
             existing.name = f"Antigravity - {email}" if data.for_antigravity else f"OAuth - {email}"
             credential = existing
             is_new_credential = False
-            print(f"[凭证更新] 更新现有凭证: {email} (类型: {existing.credential_type})", flush=True)
+            log_info("Credential", f"更新现有凭证: {email} (类型: {existing.credential_type})")
         else:
             # 创建新凭证
             cred_type = "oauth_antigravity" if data.for_antigravity else "oauth"
@@ -387,7 +388,7 @@ async def credential_from_callback_url(
                 is_public=data.is_public
             )
             is_new_credential = True
-            print(f"[凭证新增] 创建新凭证: {email} (类型: {cred_type})", flush=True)
+            log_info("Credential", f"创建新凭证: {email} (类型: {cred_type})")
         
         # 验证凭证是否有效（尝试调用 API）
         is_valid = True
@@ -407,7 +408,7 @@ async def credential_from_callback_url(
                     json=test_payload
                 )
                 if test_response.status_code == 200:
-                    print(f"[凭证验证] ✅ 凭证有效", flush=True)
+                    log_success("Credential", "凭证有效")
                     # 测试 3.0 模型资格
                     test_payload_3 = {
                         "model": "gemini-3-pro-preview",
@@ -421,12 +422,12 @@ async def credential_from_callback_url(
                     )
                     if test_response_3.status_code == 200:
                         detected_tier = "3"
-                        print(f"[凭证验证] 🎉 检测到 Gemini 3 资格！", flush=True)
+                        log_success("Credential", "检测到 Gemini 3 资格！")
                 elif test_response.status_code in [401, 403]:
                     is_valid = False
-                    print(f"[凭证验证] ❌ 凭证无效: {test_response.status_code}", flush=True)
+                    log_error("Credential", f"凭证无效: {test_response.status_code}")
         except Exception as ve:
-            print(f"[凭证验证] ⚠️ 验证失败: {ve}", flush=True)
+            log_warning("Credential", f"验证失败: {ve}")
         
         credential.model_tier = detected_tier
         credential.is_active = is_valid  # 无效凭证自动禁用
@@ -441,9 +442,9 @@ async def credential_from_callback_url(
             # 统一奖励配额
             reward_quota = settings.credential_reward_quota
             user.daily_quota += reward_quota
-            print(f"[凭证奖励] 用户 {user.username} 获得 {reward_quota} 次数奖励", flush=True)
+            log_info("Credential", f"用户 {user.username} 获得 {reward_quota} 次数奖励")
         elif not is_new_credential:
-            print(f"[凭证更新] 已存在凭证，不重复奖励额度", flush=True)
+            log_info("Credential", "已存在凭证，不重复奖励额度")
 
         await db.commit()
         
