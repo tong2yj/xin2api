@@ -7,7 +7,15 @@
 
 **Gemini API 多用户代理服务** - 支持 OpenAI 兼容接口、Gemini 原生接口、凭证池管理、用户系统
 
-作者：**Catie猫猫**
+---
+
+## 🙏 致谢
+
+本项目基于原作者的开源项目进行了完全重写，感谢原作者的开源贡献！
+
+特别感谢：
+- **sukaka 大佬** 的 [gcli2api](https://github.com/sukaka7878/gcli2api)
+- **GG 大佬** 的站点
 
 ---
 
@@ -498,19 +506,6 @@ MIT License
 
 ---
 
-## 🙏 致谢
-
-本项目参考了以下优秀项目：
-
-- **sukaka 大佬** 的 [gcli2api](https://github.com/sukaka7878/gcli2api)
-- **GG 大佬** 的站点
-
-感谢二位大佬的开源贡献！
-
----
-
 ## 📮 联系方式
 
 如有问题或建议，欢迎提交 Issue 或 Pull Request。
-
-**作者：Catie猫猫**
