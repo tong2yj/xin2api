@@ -17,6 +17,9 @@ ENV PYTHONIOENCODING=utf-8
 ENV LANG=C.UTF-8
 ENV LC_ALL=C.UTF-8
 
+# 禁用 Python 字节码缓存（避免缓存导致的导入问题）
+ENV PYTHONDONTWRITEBYTECODE=1
+
 # 默认端口（可通过环境变量 PORT 覆盖，Zeabur 会自动设置为 8080）
 ENV PORT=5001
 EXPOSE 5001
