@@ -175,7 +175,7 @@ async def handle_openai_endpoint(request: Request, user: User, db: AsyncSession,
                                     model=model,
                                     endpoint="/v1/chat/completions",
                                     status_code=200,
-                                    latency_ms=(time.time() - start_time) * 1000,
+                                    latency_ms=round((time.time() - start_time), 1),
                                     client_ip=client_ip,
                                     user_agent=user_agent
                                 )
@@ -197,7 +197,7 @@ async def handle_openai_endpoint(request: Request, user: User, db: AsyncSession,
                                     model=model,
                                     endpoint="/v1/chat/completions",
                                     status_code=500,
-                                    latency_ms=(time.time() - start_time) * 1000,
+                                    latency_ms=round((time.time() - start_time), 1),
                                     error_message=error_msg[:2000],
                                     client_ip=client_ip,
                                     user_agent=user_agent
@@ -227,13 +227,21 @@ async def handle_openai_endpoint(request: Request, user: User, db: AsyncSession,
                     endpoint.last_used_at = datetime.utcnow()
                     await db.commit()
 
+                    # 提取响应数据和 token 信息
+                    response_data = response.json()
+                    usage = response_data.get("usage", {})
+                    tokens_input = usage.get("prompt_tokens", 0)
+                    tokens_output = usage.get("completion_tokens", 0)
+
                     # 记录日志
                     log = UsageLog(
                         user_id=user.id,
                         model=model,
                         endpoint="/v1/chat/completions",
                         status_code=200,
-                        latency_ms=(time.time() - start_time) * 1000,
+                        latency_ms=round((time.time() - start_time), 1),
+                        tokens_input=tokens_input,
+                        tokens_output=tokens_output,
                         client_ip=client_ip,
                         user_agent=user_agent
                     )
@@ -244,12 +252,12 @@ async def handle_openai_endpoint(request: Request, user: User, db: AsyncSession,
                         "username": user.username,
                         "model": model,
                         "status_code": 200,
-                        "latency_ms": round((time.time() - start_time) * 1000, 0),
+                        "latency_ms": round((time.time() - start_time), 1),
                         "created_at": datetime.utcnow().isoformat()
                     })
                     await notify_stats_update()
 
-                    return JSONResponse(content=response.json())
+                    return JSONResponse(content=response_data)
 
         except httpx.HTTPStatusError as e:
             last_error = f"{endpoint.name}: HTTP {e.response.status_code} - {e.response.text}"
@@ -263,7 +271,7 @@ async def handle_openai_endpoint(request: Request, user: User, db: AsyncSession,
                 model=model,
                 endpoint="/v1/chat/completions",
                 status_code=e.response.status_code,
-                latency_ms=(time.time() - start_time) * 1000,
+                latency_ms=round((time.time() - start_time), 1),
                 error_message=last_error[:2000],
                 client_ip=client_ip,
                 user_agent=user_agent
@@ -286,7 +294,7 @@ async def handle_openai_endpoint(request: Request, user: User, db: AsyncSession,
                 model=model,
                 endpoint="/v1/chat/completions",
                 status_code=500,
-                latency_ms=(time.time() - start_time) * 1000,
+                latency_ms=round((time.time() - start_time), 1),
                 error_message=last_error[:2000],
                 client_ip=client_ip,
                 user_agent=user_agent
@@ -536,15 +544,15 @@ async def chat_completions(
         client = GeminiClient(access_token, project_id)
         
         # 记录使用日志
-        async def log_usage(status_code: int = 200, cred=credential, error_msg: str = None):
-            latency = (time.time() - start_time) * 1000
-            
+        async def log_usage(status_code: int = 200, cred=credential, error_msg: str = None, tokens_input: int = 0, tokens_output: int = 0):
+            latency = round((time.time() - start_time), 1)
+
             # 错误分类
             error_type = None
             error_code = None
             if status_code != 200 and error_msg:
                 error_type, error_code = classify_error_simple(status_code, error_msg)
-            
+
             log = UsageLog(
                 user_id=user.id,
                 credential_id=cred.id,
@@ -552,6 +560,8 @@ async def chat_completions(
                 endpoint="/v1/chat/completions",
                 status_code=status_code,
                 latency_ms=latency,
+                tokens_input=tokens_input,
+                tokens_output=tokens_output,
                 error_message=error_msg[:2000] if error_msg else None,
                 error_type=error_type,
                 error_code=error_code,
@@ -562,19 +572,19 @@ async def chat_completions(
             )
             db.add(log)
             await db.commit()
-            
+
             # 更新凭证使用次数
             cred.total_requests = (cred.total_requests or 0) + 1
             cred.last_used_at = datetime.utcnow()
             await db.commit()
-            
+
             # WebSocket 实时通知
             await notify_log_update({
                 "username": user.username,
                 "model": model,
                 "status_code": status_code,
                 "error_type": error_type,
-                "latency_ms": round(latency, 0),
+                "latency_ms": round(latency, 1),
                 "created_at": datetime.utcnow().isoformat()
             })
             await notify_stats_update()
@@ -589,18 +599,20 @@ async def chat_completions(
                     status_code: int = 200,
                     cred_id: int = None,
                     cred_email: str = None,
-                    error_msg: str = None
+                    error_msg: str = None,
+                    tokens_input: int = 0,
+                    tokens_output: int = 0
                 ):
                     """在流式生成器内部使用独立会话记录日志"""
                     try:
-                        latency = (time.time() - start_time) * 1000
-                        
+                        latency = round((time.time() - start_time), 1)
+
                         # 错误分类
                         error_type = None
                         error_code = None
                         if status_code != 200 and error_msg:
                             error_type, error_code = classify_error_simple(status_code, error_msg)
-                        
+
                         # 使用独立的数据库会话
                         async with async_session() as stream_db:
                             log = UsageLog(
@@ -610,6 +622,8 @@ async def chat_completions(
                                 endpoint="/v1/chat/completions",
                                 status_code=status_code,
                                 latency_ms=latency,
+                                tokens_input=tokens_input,
+                                tokens_output=tokens_output,
                                 error_message=error_msg[:2000] if error_msg else None,
                                 error_type=error_type,
                                 error_code=error_code,
@@ -619,7 +633,7 @@ async def chat_completions(
                                 user_agent=user_agent
                             )
                             stream_db.add(log)
-                            
+
                             # 更新凭证使用次数
                             if cred_id:
                                 from app.models.user import Credential
@@ -630,16 +644,16 @@ async def chat_completions(
                                 if cred:
                                     cred.total_requests = (cred.total_requests or 0) + 1
                                     cred.last_used_at = datetime.utcnow()
-                            
+
                             await stream_db.commit()
-                        
+
                         # WebSocket 实时通知
                         await notify_log_update({
                             "username": user.username,
                             "model": model,
                             "status_code": status_code,
                             "error_type": error_type,
-                            "latency_ms": round(latency, 0),
+                            "latency_ms": round(latency, 1),
                             "created_at": datetime.utcnow().isoformat()
                         })
                         await notify_stats_update()
@@ -710,7 +724,11 @@ async def chat_completions(
                     messages=messages,
                     **{k: v for k, v in body.items() if k not in ["model", "messages", "stream"]}
                 )
-                await log_usage()
+                # 提取 token 信息
+                usage = result.get("usage", {})
+                tokens_input = usage.get("prompt_tokens", 0)
+                tokens_output = usage.get("completion_tokens", 0)
+                await log_usage(tokens_input=tokens_input, tokens_output=tokens_output)
                 return JSONResponse(content=result)
         
         except Exception as e:
@@ -836,7 +854,7 @@ async def gemini_generate_content(
     
     # 记录日志
     async def log_usage(status_code: int = 200, cd_seconds: int = None, error_msg: str = None):
-        latency = (time.time() - start_time) * 1000
+        latency = round((time.time() - start_time), 1)
         
         # 错误分类
         error_type = None
@@ -995,7 +1013,7 @@ async def gemini_stream_generate_content(
     # 记录日志 - 使用独立会话，避免流式响应后 db 会话被关闭的问题
     async def log_usage(status_code: int = 200, cd_seconds: int = None, error_msg: str = None):
         try:
-            latency = (time.time() - start_time) * 1000
+            latency = round((time.time() - start_time), 1)
             
             # 错误分类
             error_type = None
@@ -1182,7 +1200,7 @@ async def openai_proxy(
     
     # 记录日志
     async def log_usage(status_code: int = 200, error_msg: str = None):
-        latency = (time.time() - start_time) * 1000
+        latency = round((time.time() - start_time), 1)
         
         # 错误分类
         error_type = None

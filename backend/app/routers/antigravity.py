@@ -372,7 +372,7 @@ async def handle_chat_completions_antigravity(request: Request, user: User, db: 
             lines_gen = send_antigravity_request_stream(access_token, project_id, request_body)
 
             # 记录成功日志
-            latency_ms = (time.time() - start_time) * 1000
+            latency_ms = round((time.time() - start_time), 1)
             await log_usage(db, user, credential, f"ag-{model}", "/v1/chat/completions", 200, latency_ms=latency_ms)
 
             return StreamingResponse(
@@ -413,7 +413,7 @@ async def handle_chat_completions_antigravity(request: Request, user: User, db: 
             }
 
             # 记录成功日志
-            latency_ms = (time.time() - start_time) * 1000
+            latency_ms = round((time.time() - start_time), 1)
             await log_usage(
                 db, user, credential, f"ag-{model}", "/v1/chat/completions", 200,
                 latency_ms=latency_ms,
@@ -425,7 +425,7 @@ async def handle_chat_completions_antigravity(request: Request, user: User, db: 
 
     except Exception as e:
         # 记录错误日志
-        latency_ms = (time.time() - start_time) * 1000
+        latency_ms = round((time.time() - start_time), 1)
         await log_usage(db, user, credential, f"ag-{model}", "/v1/chat/completions", 500,
                        error_message=str(e), latency_ms=latency_ms)
 
@@ -507,7 +507,7 @@ async def antigravity_chat_completions(request: Request, db: AsyncSession = Depe
             lines_gen = send_antigravity_request_stream(access_token, project_id, request_body)
 
             # 记录成功日志
-            latency_ms = (time.time() - start_time) * 1000
+            latency_ms = round((time.time() - start_time), 1)
             await log_usage(db, user, credential, model, "/antigravity/v1/chat/completions", 200, latency_ms=latency_ms)
 
             return StreamingResponse(
@@ -548,7 +548,7 @@ async def antigravity_chat_completions(request: Request, db: AsyncSession = Depe
             }
 
             # 记录成功日志
-            latency_ms = (time.time() - start_time) * 1000
+            latency_ms = round((time.time() - start_time), 1)
             await log_usage(
                 db, user, credential, model, "/antigravity/v1/chat/completions", 200,
                 latency_ms=latency_ms,
@@ -560,7 +560,7 @@ async def antigravity_chat_completions(request: Request, db: AsyncSession = Depe
 
     except Exception as e:
         # 记录错误日志
-        latency_ms = (time.time() - start_time) * 1000
+        latency_ms = round((time.time() - start_time), 1)
         await log_usage(db, user, credential, model, "/antigravity/v1/chat/completions", 500,
                        error_message=str(e), latency_ms=latency_ms)
 
@@ -700,13 +700,13 @@ async def gemini_generate_content(
         gemini_response = response_data.get("response", response_data)
 
         # 记录日志
-        latency_ms = (time.time() - start_time) * 1000
+        latency_ms = round((time.time() - start_time), 1)
         await log_usage(db, user, credential, model, f"/antigravity/v1/models/{model}:generateContent", 200, latency_ms=latency_ms)
 
         return JSONResponse(content=gemini_response)
 
     except Exception as e:
-        latency_ms = (time.time() - start_time) * 1000
+        latency_ms = round((time.time() - start_time), 1)
         await log_usage(db, user, credential, model, f"/antigravity/v1/models/{model}:generateContent", 500,
                        error_message=str(e), latency_ms=latency_ms)
         raise HTTPException(status_code=500, detail=f"Antigravity API错误: {str(e)}")
@@ -768,7 +768,7 @@ async def gemini_stream_generate_content(
         lines_gen = send_antigravity_request_stream(access_token, project_id, request_body)
 
         # 记录日志
-        latency_ms = (time.time() - start_time) * 1000
+        latency_ms = round((time.time() - start_time), 1)
         await log_usage(db, user, credential, model, f"/antigravity/v1/models/{model}:streamGenerateContent", 200, latency_ms=latency_ms)
 
         return StreamingResponse(
@@ -777,7 +777,7 @@ async def gemini_stream_generate_content(
         )
 
     except Exception as e:
-        latency_ms = (time.time() - start_time) * 1000
+        latency_ms = round((time.time() - start_time), 1)
         await log_usage(db, user, credential, model, f"/antigravity/v1/models/{model}:streamGenerateContent", 500,
                        error_message=str(e), latency_ms=latency_ms)
         raise HTTPException(status_code=500, detail=f"Antigravity API错误: {str(e)}")
