@@ -384,15 +384,15 @@ export default function CredentialsTab() {
                     className={`text-xs px-2 py-0.5 rounded ${
                       c.credential_type === 'oauth_antigravity'
                         ? 'bg-purple-500/20 text-purple-400'
-                        : c.credential_type === 'oauth'
+                        : c.credential_type === 'gemini_cli'
                         ? 'bg-blue-500/20 text-blue-400'
                         : 'bg-gray-500/20 text-gray-400'
                     }`}
                   >
                     {c.credential_type === 'oauth_antigravity'
                       ? 'Antigravity'
-                      : c.credential_type === 'oauth'
-                      ? 'OAuth'
+                      : c.credential_type === 'gemini_cli'
+                      ? 'GeminiCli'
                       : 'API Key'}
                   </span>
                 </td>

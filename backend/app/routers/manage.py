@@ -352,7 +352,7 @@ async def start_all_credentials(
     
     result = await db.execute(
         select(Credential).where(
-            Credential.credential_type == "oauth",
+            Credential.credential_type == "gemini_cli",
             Credential.refresh_token.isnot(None)
         )
     )

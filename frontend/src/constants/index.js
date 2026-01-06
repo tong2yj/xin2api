@@ -2,7 +2,7 @@
 
 // 凭证类型
 export const CREDENTIAL_TYPES = {
-  OAUTH: 'oauth',
+  GEMINI_CLI: 'gemini_cli',
   OAUTH_ANTIGRAVITY: 'oauth_antigravity',
 };
 

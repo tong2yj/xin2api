@@ -405,7 +405,7 @@ async def upload_credentials(
                     refresh_token=encrypt_credential(cred_data.get("refresh_token")),
                     client_id=encrypt_credential(cred_data.get("client_id")) if cred_data.get("client_id") else None,
                     client_secret=encrypt_credential(cred_data.get("client_secret")) if cred_data.get("client_secret") else None,
-                    credential_type="oauth"
+                    credential_type="gemini_cli"
                 )
                 
                 access_token = await CredentialPool.get_access_token(temp_cred, db)
@@ -458,7 +458,7 @@ async def upload_credentials(
                 client_id=encrypt_credential(cred_data.get("client_id")) if cred_data.get("client_id") else None,
                 client_secret=encrypt_credential(cred_data.get("client_secret")) if cred_data.get("client_secret") else None,
                 project_id=project_id,
-                credential_type="oauth",
+                credential_type="gemini_cli",
                 email=email,
                 is_public=actual_public,
                 is_active=is_valid,

@@ -49,9 +49,9 @@ export function CredentialCard({
                 🚀 Antigravity
               </span>
             )}
-            {cred.credential_type === 'oauth' && (
+            {cred.credential_type === 'gemini_cli' && (
               <span className="text-xs px-2.5 py-1 bg-blue-600 text-white rounded font-medium">
-                🤖 Gemini
+                🤖 GeminiCli
               </span>
             )}
 

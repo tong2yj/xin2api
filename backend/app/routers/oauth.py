@@ -362,15 +362,15 @@ async def credential_from_callback_url(
             existing.refresh_token = encrypt_credential(refresh_token)
             existing.project_id = project_id
             # 更新凭证类型
-            existing.credential_type = "oauth_antigravity" if data.for_antigravity else "oauth"
-            existing.name = f"Antigravity - {email}" if data.for_antigravity else f"OAuth - {email}"
+            existing.credential_type = "oauth_antigravity" if data.for_antigravity else "gemini_cli"
+            existing.name = f"Antigravity - {email}" if data.for_antigravity else f"GeminiCli - {email}"
             credential = existing
             is_new_credential = False
             log_info("Credential", f"更新现有凭证: {email} (类型: {existing.credential_type})")
         else:
             # 创建新凭证
-            cred_type = "oauth_antigravity" if data.for_antigravity else "oauth"
-            cred_name = f"Antigravity - {email}" if data.for_antigravity else f"OAuth - {email}"
+            cred_type = "oauth_antigravity" if data.for_antigravity else "gemini_cli"
+            cred_name = f"Antigravity - {email}" if data.for_antigravity else f"GeminiCli - {email}"
             credential = Credential(
                 user_id=user.id,
                 name=cred_name,

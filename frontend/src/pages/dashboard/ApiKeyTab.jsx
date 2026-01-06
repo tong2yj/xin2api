@@ -160,7 +160,7 @@ export default function ApiKeyTab({ userInfo, rpmConfig }) {
             </code>
           </div>
           <div>
-            <div className="mb-2 text-xs uppercase tracking-wider font-semibold text-dark-500">在酒馆 (SillyTavern) 中配置</div>
+            <div className="mb-2 text-xs uppercase tracking-wider font-semibold text-dark-500">客户端配置</div>
             <ol className="space-y-2 list-decimal list-inside marker:text-dark-600">
               <li>打开连接设置 <span className="text-dark-300">Chat Completion</span></li>
               <li>
@@ -169,7 +169,7 @@ export default function ApiKeyTab({ userInfo, rpmConfig }) {
               </li>
               <li>API Key 填写上方密钥</li>
               <li>
-                模型填写 <span className="text-primary-300 font-mono bg-primary-500/10 px-1 rounded">gemini-2.5-flash</span>
+                模型填写 <span className="text-primary-300 font-mono bg-primary-500/10 px-1 rounded">gemini-3-pro-preview</span>
               </li>
             </ol>
           </div>

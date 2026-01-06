@@ -525,8 +525,8 @@ class CredentialPool:
         获取可用的 access_token
         优先使用缓存的，过期则刷新
         """
-        # OAuth 凭证需要刷新
-        if credential.credential_type == "oauth" and credential.refresh_token:
+        # GeminiCli 凭证需要刷新
+        if credential.credential_type == "gemini_cli" and credential.refresh_token:
             # 尝试刷新 token
             new_token = await CredentialPool.refresh_access_token(credential)
             if new_token:
