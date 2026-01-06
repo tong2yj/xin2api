@@ -1,0 +1,333 @@
+import { Check, Key, Trash2, X } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import api from '../../api/index';
+import { Pagination } from '../../components/common/Pagination';
+import { ConfirmModal, InputModal, QuotaModal, AlertModal } from '../../components/modals/Modal';
+import { useToast } from '../../contexts/ToastContext';
+
+const USERS_PER_PAGE = 20;
+
+export default function UsersTab() {
+  const toast = useToast();
+  const [users, setUsers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
+  const [sort, setSort] = useState({ field: 'id', order: 'asc' });
+  const [page, setPage] = useState(1);
+
+  // 模态框状态
+  const [quotaModal, setQuotaModal] = useState({ open: false, userId: null, defaultValues: {} });
+  const [confirmModal, setConfirmModal] = useState({ open: false, title: '', message: '', onConfirm: null, danger: false });
+  const [inputModal, setInputModal] = useState({ open: false, title: '', label: '', defaultValue: '', onSubmit: null });
+  const [alertModal, setAlertModal] = useState({ open: false, title: '', message: '', type: 'info' });
+
+  const showAlert = (title, message, type = 'info') => setAlertModal({ open: true, title, message, type });
+  const showConfirm = (title, message, onConfirm, danger = false) => setConfirmModal({ open: true, title, message, onConfirm, danger });
+  const showInput = (title, label, defaultValue, onSubmit) => setInputModal({ open: true, title, label, defaultValue, onSubmit });
+
+  const fetchUsers = async () => {
+    setLoading(true);
+    try {
+      const res = await api.get('/api/admin/users');
+      setUsers(res.data.users);
+    } catch (err) {
+      toast.error('获取用户列表失败');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchUsers();
+  }, []);
+
+  // 处理用户列表：搜索 -> 排序 -> 分页
+  const processedUsers = useMemo(() => {
+    let result = [...users];
+    // 搜索
+    if (search.trim()) {
+      const s = search.toLowerCase();
+      result = result.filter(
+        (u) =>
+          u.username?.toLowerCase().includes(s) ||
+          u.discord_name?.toLowerCase().includes(s) ||
+          u.discord_id?.includes(s) ||
+          String(u.id).includes(s)
+      );
+    }
+    // 排序
+    result.sort((a, b) => {
+      let aVal = a[sort.field];
+      let bVal = b[sort.field];
+      if (typeof aVal === 'string') aVal = aVal.toLowerCase();
+      if (typeof bVal === 'string') bVal = bVal.toLowerCase();
+      if (aVal < bVal) return sort.order === 'asc' ? -1 : 1;
+      if (aVal > bVal) return sort.order === 'asc' ? 1 : -1;
+      return 0;
+    });
+    return result;
+  }, [users, search, sort]);
+
+  const totalPages = Math.ceil(processedUsers.length / USERS_PER_PAGE);
+  const paginatedUsers = processedUsers.slice(
+    (page - 1) * USERS_PER_PAGE,
+    page * USERS_PER_PAGE
+  );
+
+  const handleSort = (field) => {
+    setSort((prev) => ({
+      field,
+      order: prev.field === field && prev.order === 'asc' ? 'desc' : 'asc',
+    }));
+  };
+
+  // 用户操作
+  const toggleUserActive = async (userId, isActive) => {
+    try {
+      await api.put(`/api/admin/users/${userId}`, { is_active: !isActive });
+      fetchUsers();
+    } catch (err) {
+      toast.error('用户状态更新失败');
+    }
+  };
+
+  const updateUserQuota = (userId, user) => {
+    setQuotaModal({
+      open: true,
+      userId,
+      defaultValues: {
+        daily_quota: user.daily_quota || 0,
+        quota_flash: user.quota_flash || 0,
+        quota_25pro: user.quota_25pro || 0,
+        quota_30pro: user.quota_30pro || 0,
+      },
+    });
+  };
+
+  const handleQuotaSubmit = async (values) => {
+    try {
+      await api.put(`/api/admin/users/${quotaModal.userId}`, values);
+      fetchUsers();
+      toast.success('配额已更新');
+    } catch (err) {
+      toast.error('配额更新失败');
+    }
+  };
+
+  const deleteUser = (userId) => {
+    showConfirm(
+      '删除用户',
+      '确定删除此用户？此操作不可恢复！\n\n注意：将同时删除该用户的所有凭证！',
+      async () => {
+        try {
+          await api.delete(`/api/admin/users/${userId}`);
+          fetchUsers();
+          toast.success('用户已删除');
+        } catch (err) {
+          toast.error(err.response?.data?.detail || '删除用户失败');
+        }
+      },
+      true
+    );
+  };
+
+  const resetUserPassword = (userId, username) => {
+    showInput('重置密码', `为用户 ${username} 设置新密码`, '', async (newPassword) => {
+      if (!newPassword || newPassword.length < 6) {
+        toast.error('密码长度至少6位');
+        return;
+      }
+      try {
+        await api.put(`/api/admin/users/${userId}/password`, { new_password: newPassword });
+        toast.success(`用户 ${username} 的密码已重置`);
+      } catch (err) {
+        toast.error(err.response?.data?.detail || '密码重置失败');
+      }
+    });
+  };
+
+  if (loading) {
+    return <div className="text-center py-12 text-gray-400">加载中...</div>;
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* 搜索和统计 */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <input
+            type="text"
+            placeholder="搜索用户名、Discord..."
+            value={search}
+            onChange={(e) => {
+              setSearch(e.target.value);
+              setPage(1);
+            }}
+            className="px-4 py-2 bg-dark-800 border border-dark-600 rounded-lg text-white placeholder-gray-500 w-64"
+          />
+          <span className="text-gray-400 text-sm">
+            共 {processedUsers.length} 个用户
+            {search && ` (筛选自 ${users.length} 个)`}
+          </span>
+        </div>
+      </div>
+
+      {/* 用户表格 */}
+      <div className="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th
+                className="cursor-pointer hover:text-purple-400"
+                onClick={() => handleSort('id')}
+              >
+                ID {sort.field === 'id' && (sort.order === 'asc' ? '↑' : '↓')}
+              </th>
+              <th
+                className="cursor-pointer hover:text-purple-400"
+                onClick={() => handleSort('username')}
+              >
+                用户名 {sort.field === 'username' && (sort.order === 'asc' ? '↑' : '↓')}
+              </th>
+              <th>Discord</th>
+              <th
+                className="cursor-pointer hover:text-purple-400"
+                onClick={() => handleSort('daily_quota')}
+              >
+                配额 {sort.field === 'daily_quota' && (sort.order === 'asc' ? '↑' : '↓')}
+              </th>
+              <th
+                className="cursor-pointer hover:text-purple-400"
+                onClick={() => handleSort('today_usage')}
+              >
+                今日使用 {sort.field === 'today_usage' && (sort.order === 'asc' ? '↑' : '↓')}
+              </th>
+              <th
+                className="cursor-pointer hover:text-purple-400"
+                onClick={() => handleSort('credential_count')}
+              >
+                凭证数 {sort.field === 'credential_count' && (sort.order === 'asc' ? '↑' : '↓')}
+              </th>
+              <th>状态</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            {paginatedUsers.map((u) => (
+              <tr key={u.id}>
+                <td className="text-gray-400">{u.id}</td>
+                <td>
+                  {u.username}
+                  {u.is_admin && (
+                    <span className="ml-2 text-xs bg-purple-500/20 text-purple-400 px-1.5 py-0.5 rounded">
+                      管理员
+                    </span>
+                  )}
+                </td>
+                <td className="text-gray-400 text-xs">
+                  {u.discord_id ? (
+                    <div>
+                      <div className="text-blue-400">{u.discord_name || 'Unknown'}</div>
+                      <div className="text-gray-500 font-mono">{u.discord_id}</div>
+                    </div>
+                  ) : (
+                    '-'
+                  )}
+                </td>
+                <td>
+                  <button
+                    onClick={() => updateUserQuota(u.id, u)}
+                    className="text-purple-400 hover:underline"
+                  >
+                    {u.daily_quota}
+                  </button>
+                </td>
+                <td>{u.today_usage}</td>
+                <td className={u.credential_count > 0 ? 'text-green-400' : 'text-gray-500'}>
+                  {u.credential_count || 0}
+                </td>
+                <td>
+                  {u.is_active ? (
+                    <span className="text-green-400">活跃</span>
+                  ) : (
+                    <span className="text-red-400">禁用</span>
+                  )}
+                </td>
+                <td>
+                  <div className="flex gap-1">
+                    <button
+                      onClick={() => toggleUserActive(u.id, u.is_active)}
+                      className={`p-1.5 rounded hover:bg-dark-700 ${
+                        u.is_active ? 'text-red-400' : 'text-green-400'
+                      }`}
+                      title={u.is_active ? '禁用' : '启用'}
+                    >
+                      {u.is_active ? <X size={16} /> : <Check size={16} />}
+                    </button>
+                    <button
+                      onClick={() => resetUserPassword(u.id, u.username)}
+                      className="p-1.5 rounded hover:bg-dark-700 text-gray-400 hover:text-blue-400"
+                      title="重置密码"
+                    >
+                      <Key size={16} />
+                    </button>
+                    <button
+                      onClick={() => deleteUser(u.id)}
+                      className="p-1.5 rounded hover:bg-dark-700 text-gray-400 hover:text-red-400"
+                      title="删除"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* 分页 */}
+      <Pagination
+        currentPage={page}
+        totalPages={totalPages}
+        onPageChange={setPage}
+      />
+
+      {/* 模态框 */}
+      <QuotaModal
+        isOpen={quotaModal.open}
+        onClose={() => setQuotaModal({ open: false, userId: null, defaultValues: {} })}
+        onSubmit={handleQuotaSubmit}
+        title="设置用户配额"
+        defaultValues={quotaModal.defaultValues}
+      />
+
+      <ConfirmModal
+        isOpen={confirmModal.open}
+        onClose={() => setConfirmModal({ ...confirmModal, open: false })}
+        onConfirm={confirmModal.onConfirm}
+        title={confirmModal.title}
+        message={confirmModal.message}
+        danger={confirmModal.danger}
+      />
+
+      <InputModal
+        isOpen={inputModal.open}
+        onClose={() => setInputModal({ ...inputModal, open: false })}
+        onSubmit={inputModal.onSubmit}
+        title={inputModal.title}
+        label={inputModal.label}
+        defaultValue={inputModal.defaultValue}
+        type="password"
+      />
+
+      <AlertModal
+        isOpen={alertModal.open}
+        onClose={() => setAlertModal({ ...alertModal, open: false })}
+        title={alertModal.title}
+        message={alertModal.message}
+        type={alertModal.type}
+      />
+    </div>
+  );
+}

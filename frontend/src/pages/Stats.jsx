@@ -1,595 +1,417 @@
-import { AlertTriangle, Check, ChevronDown, ChevronUp, Copy, RefreshCw, X } from 'lucide-react'
-import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import api from '../api'
+import { AlertTriangle, BarChart2, Check, ChevronDown, ChevronUp, Copy, RefreshCw, X } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import api from '../api';
+import { Button } from '../components/common/Button';
+import { Card, CardHeader } from '../components/common/Card';
+import { Table } from '../components/common/Table';
+import { PageLayout } from '../components/layout/PageLayout';
+import { copyToClipboard } from '../utils/clipboard';
 
 export default function Stats() {
-  const navigate = useNavigate()
-  const [overview, setOverview] = useState(null)
-  const [globalStats, setGlobalStats] = useState(null)
-  const [byModel, setByModel] = useState([])
-  const [byUser, setByUser] = useState([])
-  const [daily, setDaily] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [days, setDays] = useState(7)
-  
+  const navigate = useNavigate();
+  const [overview, setOverview] = useState(null);
+  const [globalStats, setGlobalStats] = useState(null);
+  const [byModel, setByModel] = useState([]);
+  const [byUser, setByUser] = useState([]);
+  const [daily, setDaily] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [days, setDays] = useState(7);
+
   // 报错统计相关状态
-  const [errorStats, setErrorStats] = useState(null)
-  const [errorPage, setErrorPage] = useState(1)
-  const [errorLoading, setErrorLoading] = useState(false)
-  const [expandedCodes, setExpandedCodes] = useState({})
-  const [selectedLog, setSelectedLog] = useState(null)
-  const [logDetailLoading, setLogDetailLoading] = useState(false)
-  const [copied, setCopied] = useState(false)
+  const [errorStats, setErrorStats] = useState(null);
+  const [errorPage, setErrorPage] = useState(1);
+  const [errorLoading, setErrorLoading] = useState(false);
+  const [expandedCodes, setExpandedCodes] = useState({});
+  const [selectedLog, setSelectedLog] = useState(null);
+  const [logDetailLoading, setLogDetailLoading] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
-    fetchStats()
-  }, [days])
+    fetchStats();
+  }, [days]);
 
   const fetchStats = async () => {
-    setLoading(true)
-    // 独立请求每个API，避免一个失败导致全部为空
+    setLoading(true);
     const results = await Promise.allSettled([
       api.get('/api/manage/stats/overview'),
       api.get('/api/manage/stats/global'),
       api.get(`/api/manage/stats/by-model?days=${days}`),
       api.get(`/api/manage/stats/by-user?days=${days}`),
       api.get(`/api/manage/stats/daily?days=${days}`),
-    ])
-    
-    // 检查是否有权限错误
-    const authError = results.find(r => 
-      r.status === 'rejected' && 
+    ]);
+
+    const authError = results.find(r =>
+      r.status === 'rejected' &&
       (r.reason?.response?.status === 401 || r.reason?.response?.status === 403)
-    )
+    );
     if (authError) {
-      navigate('/login')
-      return
+      navigate('/login');
+      return;
     }
-    
-    // 分别处理每个结果
-    if (results[0].status === 'fulfilled') setOverview(results[0].value.data)
-    if (results[1].status === 'fulfilled') setGlobalStats(results[1].value.data)
-    if (results[2].status === 'fulfilled') setByModel(results[2].value.data.models || [])
-    if (results[3].status === 'fulfilled') setByUser(results[3].value.data.users || [])
-    if (results[4].status === 'fulfilled') setDaily(results[4].value.data.daily || [])
-    
-    setLoading(false)
-  }
+
+    if (results[0].status === 'fulfilled') setOverview(results[0].value.data);
+    if (results[1].status === 'fulfilled') setGlobalStats(results[1].value.data);
+    if (results[2].status === 'fulfilled') setByModel(results[2].value.data.models || []);
+    if (results[3].status === 'fulfilled') setByUser(results[3].value.data.users || []);
+    if (results[4].status === 'fulfilled') setDaily(results[4].value.data.daily || []);
+
+    setLoading(false);
+  };
 
   const poolModeLabel = {
     private: '🔒 私有模式',
     tier3_shared: '⚡ 3.0共享',
     full_shared: '🍲 大锅饭',
-  }
+  };
 
-  // 获取报错统计
   const fetchErrorStats = async (page = 1) => {
-    setErrorLoading(true)
+    setErrorLoading(true);
     try {
-      const res = await api.get(`/api/manage/stats/errors?page=${page}&page_size=50`)
-      setErrorStats(res.data)
-      setErrorPage(page)
+      const res = await api.get(`/api/manage/stats/errors?page=${page}&page_size=50`);
+      setErrorStats(res.data);
+      setErrorPage(page);
     } catch (err) {
-      console.error('获取报错统计失败', err)
+      console.error('获取报错统计失败', err);
     } finally {
-      setErrorLoading(false)
+      setErrorLoading(false);
     }
-  }
+  };
 
-  // 获取日志详情
   const fetchLogDetail = async (logId) => {
-    setLogDetailLoading(true)
+    setLogDetailLoading(true);
     try {
-      const res = await api.get(`/api/manage/logs/${logId}`)
-      setSelectedLog(res.data)
+      const res = await api.get(`/api/manage/logs/${logId}`);
+      setSelectedLog(res.data);
     } catch (err) {
-      console.error('获取日志详情失败', err)
+      console.error('获取日志详情失败', err);
     } finally {
-      setLogDetailLoading(false)
+      setLogDetailLoading(false);
     }
-  }
+  };
 
-  // 切换展开/折叠
   const toggleExpand = (code) => {
-    setExpandedCodes(prev => ({ ...prev, [code]: !prev[code] }))
-  }
+    setExpandedCodes(prev => ({ ...prev, [code]: !prev[code] }));
+  };
 
-  // 复制到剪贴板
-  const copyToClipboard = async (text) => {
-    try {
-      await navigator.clipboard.writeText(text)
-    } catch {
-      const textarea = document.createElement('textarea')
-      textarea.value = text
-      document.body.appendChild(textarea)
-      textarea.select()
-      document.execCommand('copy')
-      document.body.removeChild(textarea)
-    }
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
-  }
+  const handleCopy = async (text) => {
+    await copyToClipboard(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
 
-  // 错误码颜色
   const getStatusCodeColor = (code) => {
-    if (code >= 500) return 'text-red-400 bg-red-500/20'
-    if (code === 429) return 'text-orange-400 bg-orange-500/20'
-    if (code >= 400) return 'text-yellow-400 bg-yellow-500/20'
-    return 'text-gray-400 bg-gray-500/20'
-  }
+    if (code >= 500) return 'text-red-400 bg-red-500/10 border border-red-500/20';
+    if (code === 429) return 'text-orange-400 bg-orange-500/10 border border-orange-500/20';
+    if (code >= 400) return 'text-yellow-400 bg-yellow-500/10 border border-yellow-500/20';
+    return 'text-gray-400 bg-gray-500/10 border border-gray-500/20';
+  };
+
+  // 表格列定义
+  const errorColumns = [
+    { key: 'created_at', label: '时间', render: val => <span className="text-dark-400 text-xs">{new Date(val).toLocaleString()}</span> },
+    { key: 'username', label: '用户', render: val => <span className="text-primary-400 text-sm">{val}</span> },
+    { key: 'model', label: '模型', render: val => <span className="text-cyan-400 font-mono text-xs">{val}</span> },
+    { key: 'status_code', label: '状态码', render: val => <span className={`px-2 py-0.5 rounded text-xs ${getStatusCodeColor(val)}`}>{val}</span> },
+    { key: 'cd_seconds', label: 'CD', render: val => <span className="text-orange-400 text-xs">{val ? `${val}s` : '-'}</span> },
+    {
+      key: 'actions',
+      label: '操作',
+      render: (_, row) => (
+        <Button size="sm" variant="ghost" onClick={() => fetchLogDetail(row.id)} className="!py-1 !px-2 text-xs">
+          详情
+        </Button>
+      )
+    }
+  ];
+
+  const rightContent = (
+    <div className="flex gap-2 items-center">
+       <select
+          value={days}
+          onChange={(e) => setDays(Number(e.target.value))}
+          className="bg-dark-800 text-dark-200 border border-dark-700 px-3 py-1.5 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/50"
+        >
+          <option value={7}>最近 7 天</option>
+          <option value={14}>最近 14 天</option>
+          <option value={30}>最近 30 天</option>
+        </select>
+        <Button size="sm" variant="secondary" onClick={() => navigate('/dashboard')}>
+          返回仪表盘
+        </Button>
+    </div>
+  );
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
-        <div className="text-white">加载中...</div>
+       <div className="min-h-screen bg-bg-main flex items-center justify-center text-dark-400">
+        <RefreshCw className="animate-spin mr-2" /> 加载中...
       </div>
-    )
+    );
   }
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white p-6">
-      <div className="max-w-7xl mx-auto">
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
-          <h1 className="text-2xl sm:text-3xl font-bold whitespace-nowrap">📊 使用统计</h1>
-          <div className="flex gap-2 sm:gap-4 items-center flex-wrap">
-            <select
-              value={days}
-              onChange={(e) => setDays(Number(e.target.value))}
-              className="bg-gray-800 text-white px-3 py-2 rounded-lg text-sm"
-            >
-              <option value={7}>最近 7 天</option>
-              <option value={14}>最近 14 天</option>
-              <option value={30}>最近 30 天</option>
-            </select>
-            <button
-              onClick={() => navigate('/dashboard')}
-              className="px-3 sm:px-4 py-2 bg-gray-700 rounded-lg hover:bg-gray-600 text-sm"
-            >
-              返回仪表盘
-            </button>
-          </div>
-        </div>
-
-        {/* 全站实时统计 */}
-        {globalStats && (
-          <div className="bg-gray-800 rounded-xl p-6 mb-8">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-semibold">🌐 全站实时统计</h2>
-              <span className="px-3 py-1 bg-purple-600/30 text-purple-400 rounded-full text-sm">
-                {poolModeLabel[globalStats.pool_mode] || globalStats.pool_mode}
-              </span>
-            </div>
-            
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-              <div className="bg-gray-700/50 rounded-lg p-4">
-                <div className="text-2xl font-bold text-yellow-400">{globalStats.requests.last_hour}</div>
-                <div className="text-sm text-gray-400">最近1小时</div>
-              </div>
-              <div className="bg-gray-700/50 rounded-lg p-4">
-                <div className="text-2xl font-bold text-blue-400">{globalStats.requests.today}</div>
-                <div className="text-sm text-gray-400">今日请求</div>
-              </div>
-              <div className="bg-gray-700/50 rounded-lg p-4">
-                <div className="text-2xl font-bold text-green-400">{globalStats.users.active_24h}</div>
-                <div className="text-sm text-gray-400">活跃用户(24h)</div>
-              </div>
-              <div className="bg-gray-700/50 rounded-lg p-4">
-                <div className="text-2xl font-bold text-purple-400">{globalStats.credentials.tier_3}</div>
-                <div className="text-sm text-gray-400">3.0凭证</div>
-              </div>
-            </div>
-
-            {/* Top 3 模型统计 */}
-            <div className="grid grid-cols-3 gap-4 mb-4">
-              {globalStats.requests.top_models && globalStats.requests.top_models.length > 0 ? (
-                globalStats.requests.top_models.map((modelStat, index) => {
-                  const colors = [
-                    { bg: 'bg-cyan-600/20', border: 'border-cyan-600/30', text: 'text-cyan-400', label: 'text-cyan-300' },
-                    { bg: 'bg-orange-600/20', border: 'border-orange-600/30', text: 'text-orange-400', label: 'text-orange-300' },
-                    { bg: 'bg-pink-600/20', border: 'border-pink-600/30', text: 'text-pink-400', label: 'text-pink-300' }
-                  ]
-                  const color = colors[index] || colors[2]
-                  return (
-                    <div key={index} className={`${color.bg} border ${color.border} rounded-lg p-4 text-center`}>
-                      <div className={`text-2xl font-bold ${color.text}`}>
-                        {modelStat.count}
-                      </div>
-                      <div className={`text-sm ${color.label} mt-1 truncate`} title={modelStat.model}>
-                        {modelStat.model}
-                      </div>
-                    </div>
-                  )
-                })
-              ) : (
-                <div className="col-span-3 text-center text-gray-500 py-4">
-                  暂无模型调用数据
-                </div>
-              )}
-            </div>
-
-            {/* 凭证状态 */}
-            <div className="flex items-center gap-4 text-sm text-gray-400">
-              <span>用户: {globalStats.user_counts?.total ?? 0}</span>
-              <span>•</span>
-              <span>凭证: {globalStats.credentials.active}/{globalStats.credentials.total} 活跃</span>
-              <span>•</span>
-              <span>公共池: {globalStats.credentials.public}</span>
-              <span>•</span>
-              <span>3.0: {globalStats.credentials.tier_3}</span>
-            </div>
-          </div>
-        )}
-
-        {/* 概览卡片 */}
-        {overview && (
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-            <div className="bg-gradient-to-br from-blue-600 to-blue-800 p-6 rounded-xl">
-              <h3 className="text-sm text-blue-200 mb-2">今日请求</h3>
-              <p className="text-3xl font-bold">{overview.requests.today}</p>
-            </div>
-            <div className="bg-gradient-to-br from-green-600 to-green-800 p-6 rounded-xl">
-              <h3 className="text-sm text-green-200 mb-2">本周请求</h3>
-              <p className="text-3xl font-bold">{overview.requests.week}</p>
-            </div>
-            <div className="bg-gradient-to-br from-purple-600 to-purple-800 p-6 rounded-xl">
-              <h3 className="text-sm text-purple-200 mb-2">本月请求</h3>
-              <p className="text-3xl font-bold">{overview.requests.month}</p>
-            </div>
-            <div className="bg-gradient-to-br from-orange-600 to-orange-800 p-6 rounded-xl">
-              <h3 className="text-sm text-orange-200 mb-2">活跃凭证</h3>
-              <p className="text-3xl font-bold">{overview.credentials.active}/{overview.credentials.total}</p>
-            </div>
-          </div>
-        )}
-
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {/* 按模型统计 */}
-          <div className="bg-gray-800 rounded-xl p-6">
-            <h2 className="text-xl font-semibold mb-4">🤖 按模型统计</h2>
-            <div className="space-y-3">
-              {byModel.length === 0 ? (
-                <p className="text-gray-400">暂无数据</p>
-              ) : (
-                byModel.map((item, idx) => (
-                  <div key={idx} className="flex justify-between items-center">
-                    <span className="text-gray-300 truncate flex-1">{item.model}</span>
-                    <div className="flex items-center gap-2">
-                      <div className="w-32 bg-gray-700 rounded-full h-2">
-                        <div
-                          className="bg-blue-500 h-2 rounded-full"
-                          style={{
-                            width: `${Math.min(100, (item.count / (byModel[0]?.count || 1)) * 100)}%`
-                          }}
-                        />
-                      </div>
-                      <span className="text-white font-medium w-16 text-right">{item.count}</span>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-
-          {/* 按用户统计 */}
-          <div className="bg-gray-800 rounded-xl p-6">
-            <h2 className="text-xl font-semibold mb-4">👥 按用户统计 (Top 20)</h2>
-            <div className="space-y-3">
-              {byUser.length === 0 ? (
-                <p className="text-gray-400">暂无数据</p>
-              ) : (
-                byUser.map((item, idx) => (
-                  <div key={idx} className="flex justify-between items-center">
-                    <span className="text-gray-300">{item.username}</span>
-                    <div className="flex items-center gap-2">
-                      <div className="w-32 bg-gray-700 rounded-full h-2">
-                        <div
-                          className="bg-green-500 h-2 rounded-full"
-                          style={{
-                            width: `${Math.min(100, (item.count / (byUser[0]?.count || 1)) * 100)}%`
-                          }}
-                        />
-                      </div>
-                      <span className="text-white font-medium w-16 text-right">{item.count}</span>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* 每日趋势 */}
-        <div className="bg-gray-800 rounded-xl p-6 mt-8">
-          <h2 className="text-xl font-semibold mb-4">📈 每日请求趋势</h2>
-          <div className="h-64 flex items-end gap-1">
-            {daily.length === 0 ? (
-              <p className="text-gray-400">暂无数据</p>
-            ) : (
-              daily.map((item, idx) => {
-                const maxCount = Math.max(...daily.map(d => d.count))
-                const height = maxCount > 0 ? (item.count / maxCount) * 100 : 0
-                return (
-                  <div
-                    key={idx}
-                    className="flex-1 bg-blue-500 rounded-t hover:bg-blue-400 transition-colors relative group"
-                    style={{ height: `${Math.max(height, 2)}%` }}
-                  >
-                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 bg-black px-2 py-1 rounded text-xs opacity-0 group-hover:opacity-100 whitespace-nowrap">
-                      {item.date}: {item.count}
-                    </div>
-                  </div>
-                )
-              })
-            )}
-          </div>
-          <div className="flex justify-between mt-2 text-xs text-gray-500">
-            <span>{daily[0]?.date || ''}</span>
-            <span>{daily[daily.length - 1]?.date || ''}</span>
-          </div>
-        </div>
-
-        {/* 报错统计面板 */}
-        <div className="bg-gray-800 rounded-xl p-6 mt-8">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-semibold flex items-center gap-2">
-              <AlertTriangle className="w-5 h-5 text-yellow-400" />
-              今日报错统计
+    <PageLayout maxWidth="7xl" subtitle="使用统计" rightContent={rightContent} showAdminLinks>
+      
+      {/* 全站实时统计 Card */}
+      {globalStats && (
+        <Card className="mb-8">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-lg font-semibold flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+              全站实时概览
             </h2>
-            <button
-              onClick={() => fetchErrorStats(1)}
-              disabled={errorLoading}
-              className="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 rounded-lg text-sm flex items-center gap-2"
-            >
-              <RefreshCw size={14} className={errorLoading ? 'animate-spin' : ''} />
-              {errorStats ? '刷新' : '加载报错统计'}
-            </button>
+            <span className="px-3 py-1 bg-primary-500/10 border border-primary-500/20 text-primary-300 rounded-full text-xs font-medium">
+              {poolModeLabel[globalStats.pool_mode] || globalStats.pool_mode}
+            </span>
           </div>
 
-          {errorStats && (
-            <>
-              {/* 按错误码分类 - 可展开 */}
-              {errorStats.error_by_code?.length > 0 && (
-                <div className="space-y-2 mb-6">
-                  {errorStats.error_by_code.map((item, idx) => (
-                    <div key={idx} className="border border-gray-700 rounded-lg overflow-hidden">
-                      <button
-                        onClick={() => toggleExpand(item.status_code)}
-                        className="w-full flex items-center justify-between p-3 bg-gray-700/50 hover:bg-gray-700 transition-colors"
-                      >
-                        <div className="flex items-center gap-3">
-                          <span className="text-gray-400 font-mono">{idx + 1}</span>
-                          <span className={`px-2 py-0.5 rounded text-sm font-medium ${getStatusCodeColor(item.status_code)}`}>
-                            {item.status_code === 429 ? '速率限制' : item.status_code >= 500 ? '服务器错误' : '错误'} ({item.status_code})
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <span className="text-gray-400 text-sm">{item.count} 次</span>
-                          {expandedCodes[item.status_code] ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-                        </div>
-                      </button>
-                      {expandedCodes[item.status_code] && (
-                        <div className="p-3 bg-gray-800/50 border-t border-gray-700">
-                          <div className="space-y-1 text-sm">
-                            {item.details?.map((detail, dIdx) => (
-                              <div key={dIdx} className="flex items-center justify-between text-gray-400 hover:text-white hover:bg-gray-700/50 px-2 py-1 rounded cursor-pointer"
-                                onClick={() => fetchLogDetail(detail.id)}>
-                                <span className="text-purple-400">{detail.username}</span>
-                                <span className="text-cyan-400 font-mono text-xs">{detail.model}</span>
-                                <span className="text-gray-500 text-xs">{new Date(detail.created_at).toLocaleTimeString()}</span>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+             <StatsMetric label="最近1小时请求" value={globalStats.requests.last_hour} color="text-yellow-400" />
+             <StatsMetric label="今日请求" value={globalStats.requests.today} color="text-blue-400" />
+             <StatsMetric label="24h活跃用户" value={globalStats.users.active_24h} color="text-emerald-400" />
+             <StatsMetric label="3.0 凭证数" value={globalStats.credentials.tier_3} color="text-primary-400" />
+          </div>
+
+          <div className="flex flex-wrap gap-4 pt-4 border-t border-white/5 text-sm text-dark-400">
+             <span>用户总数: <span className="text-dark-200">{globalStats.user_counts?.total ?? 0}</span></span>
+             <span className="text-dark-700">|</span>
+             <span>凭证: <span className="text-emerald-400">{globalStats.credentials.active}</span> Active / {globalStats.credentials.total} Total</span>
+             <span className="text-dark-700">|</span>
+             <span>公共池: <span className="text-primary-400">{globalStats.credentials.public}</span></span>
+          </div>
+        </Card>
+      )}
+
+      {/* 历史概览 Grid */}
+      {overview && (
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+           <OverviewCard title="今日请求" value={overview.requests.today} gradient="from-blue-600/20 to-blue-900/20" border="border-blue-500/20" textColor="text-blue-400" />
+           <OverviewCard title="本周请求" value={overview.requests.week} gradient="from-emerald-600/20 to-emerald-900/20" border="border-emerald-500/20" textColor="text-emerald-400" />
+           <OverviewCard title="本月请求" value={overview.requests.month} gradient="from-primary-600/20 to-primary-900/20" border="border-primary-500/20" textColor="text-primary-400" />
+           <OverviewCard title="活跃凭证" value={`${overview.credentials.active}/${overview.credentials.total}`} gradient="from-orange-600/20 to-orange-900/20" border="border-orange-500/20" textColor="text-orange-400" />
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+        {/* 按模型统计 */}
+        <Card>
+          <CardHeader icon={BarChart2}>模型使用排行</CardHeader>
+          <div className="space-y-4">
+             {byModel.map((item, idx) => (
+                <ProgressBar key={idx} label={item.model} value={item.count} max={byModel[0]?.count || 1} color="bg-blue-500" />
+             ))}
+             {byModel.length === 0 && <p className="text-dark-400 text-center py-4">暂无数据</p>}
+          </div>
+        </Card>
+
+        {/* 按用户统计 */}
+        <Card>
+          <CardHeader icon={BarChart2}>用户使用排行 (Top 20)</CardHeader>
+           <div className="space-y-4">
+             {byUser.map((item, idx) => (
+                <ProgressBar key={idx} label={item.username} value={item.count} max={byUser[0]?.count || 1} color="bg-emerald-500" />
+             ))}
+             {byUser.length === 0 && <p className="text-dark-400 text-center py-4">暂无数据</p>}
+          </div>
+        </Card>
+      </div>
+
+       {/* 每日趋势 Chart */}
+      <Card className="mb-8">
+        <CardHeader icon={BarChart2}>每日请求趋势</CardHeader>
+        <div className="h-64 flex items-end gap-2 pt-4 px-2">
+           {daily.length === 0 ? (
+              <div className="w-full h-full flex items-center justify-center text-dark-400">暂无数据</div>
+           ) : (
+              daily.map((item, idx) => {
+                 const maxCount = Math.max(...daily.map(d => d.count));
+                 const height = maxCount > 0 ? (item.count / maxCount) * 100 : 0;
+                 return (
+                    <div key={idx} className="flex-1 flex flex-col justify-end group relative h-full">
+                       <div 
+                          className="w-full bg-primary-500/40 hover:bg-primary-500 rounded-t-lg transition-all duration-300 relative"
+                          style={{ height: `${Math.max(height, 2)}%` }}
+                       >
+                         {/* Tooltip */}
+                         <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 bg-dark-800 border border-dark-700 px-3 py-1.5 rounded-lg text-xs shadow-xl opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10 pointer-events-none">
+                            <div className="font-bold text-white">{item.count} 请求</div>
+                            <div className="text-dark-400">{item.date}</div>
+                         </div>
+                       </div>
                     </div>
-                  ))}
-                  <div className="text-xs text-gray-500 mt-2">
-                    总计: {errorStats.total} 次报错（点击展开详情）
-                  </div>
-                </div>
-              )}
+                 )
+              })
+           )}
+        </div>
+        <div className="flex justify-between mt-4 text-xs text-dark-400 border-t border-white/5 pt-2">
+            <span>{daily[0]?.date}</span>
+            <span>{daily[daily.length - 1]?.date}</span>
+        </div>
+      </Card>
 
-              {/* 最近报错详情表格 */}
-              <h3 className="text-lg font-semibold mb-3">最近报错详情</h3>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="text-left text-gray-400 border-b border-gray-700">
-                      <th className="pb-2 pr-4">时间</th>
-                      <th className="pb-2 pr-4">用户</th>
-                      <th className="pb-2 pr-4">模型</th>
-                      <th className="pb-2 pr-4">状态码</th>
-                      <th className="pb-2 pr-4">CD</th>
-                      <th className="pb-2">操作</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {errorStats.errors?.map((err) => (
-                      <tr key={err.id} className="border-b border-gray-700/50 hover:bg-gray-700/30">
-                        <td className="py-2 pr-4 text-gray-400">{new Date(err.created_at).toLocaleString()}</td>
-                        <td className="py-2 pr-4 text-purple-400">{err.username}</td>
-                        <td className="py-2 pr-4 text-cyan-400 font-mono text-xs">{err.model}</td>
-                        <td className="py-2 pr-4">
-                          <span className={`px-2 py-0.5 rounded text-xs ${getStatusCodeColor(err.status_code)}`}>
-                            {err.status_code}
-                          </span>
-                        </td>
-                        <td className="py-2 pr-4 text-orange-400">{err.cd_seconds ? `${err.cd_seconds}s` : '-'}</td>
-                        <td className="py-2">
-                          <button
-                            onClick={() => fetchLogDetail(err.id)}
-                            className="text-blue-400 hover:text-blue-300 text-xs"
-                          >
-                            详情
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-
-              {/* 分页 */}
-              {errorStats.total_pages > 1 && (
-                <div className="flex items-center justify-center gap-2 mt-4">
-                  <button
-                    onClick={() => fetchErrorStats(errorPage - 1)}
-                    disabled={errorPage <= 1 || errorLoading}
-                    className="px-3 py-1 bg-gray-700 rounded hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    上一页
-                  </button>
-                  <span className="text-gray-400 text-sm">
-                    {errorPage} / {errorStats.total_pages}
-                  </span>
-                  <button
-                    onClick={() => fetchErrorStats(errorPage + 1)}
-                    disabled={errorPage >= errorStats.total_pages || errorLoading}
-                    className="px-3 py-1 bg-gray-700 rounded hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    下一页
-                  </button>
-                </div>
-              )}
-            </>
-          )}
-
-          {!errorStats && !errorLoading && (
-            <div className="text-center text-gray-500 py-8">
-              点击上方按钮加载报错统计
-            </div>
-          )}
+      {/* 报错统计 */}
+      <Card padding={false} className="overflow-hidden">
+        <div className="p-6 border-b border-white/5 flex items-center justify-between">
+           <h3 className="text-lg font-semibold flex items-center gap-2">
+              <AlertTriangle className="text-yellow-500" size={20} />
+              今日报错统计
+           </h3>
+           <Button size="sm" variant="secondary" onClick={() => fetchErrorStats(1)} loading={errorLoading} icon={RefreshCw}>
+              {errorStats ? '刷新' : '加载'}
+           </Button>
         </div>
 
-        {/* 请求详情弹窗 */}
-        {selectedLog && (
-          <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-            <div className="bg-gray-800 rounded-xl max-w-3xl w-full max-h-[90vh] overflow-y-auto">
-              <div className="sticky top-0 bg-gray-800 border-b border-gray-700 p-4 flex items-center justify-between">
-                <h3 className="text-lg font-semibold">请求详情</h3>
-                <button onClick={() => setSelectedLog(null)} className="text-gray-400 hover:text-white">
-                  <X size={20} />
-                </button>
+        {errorStats && (
+           <div className="p-6 border-b border-white/5 bg-dark-900/30">
+              <h4 className="text-sm font-medium text-dark-300 mb-3">错误类型分布</h4>
+              <div className="flex flex-wrap gap-2">
+                 {errorStats.error_by_code?.map((item, idx) => (
+                    <button 
+                      key={idx}
+                      onClick={() => toggleExpand(item.status_code)}
+                      className={`flex items-center gap-2 px-3 py-2 rounded-lg border transition-all ${
+                         expandedCodes[item.status_code] ? 'bg-dark-700 border-dark-600' : 'bg-dark-800 border-dark-700 hover:border-dark-600'
+                      }`}
+                    >
+                       <span className={`text-xs font-bold px-1.5 py-0.5 rounded ${getStatusCodeColor(item.status_code)}`}>
+                          {item.status_code}
+                       </span>
+                       <span className="text-sm text-dark-200">{item.count} 次</span>
+                    </button>
+                 ))}
               </div>
-              
-              {logDetailLoading ? (
-                <div className="p-8 text-center text-gray-400">
-                  <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2" />
-                  加载中...
-                </div>
-              ) : (
-                <div className="p-4 space-y-4">
-                  {/* 基本信息 */}
-                  <div className="bg-gray-700/50 rounded-lg p-4">
-                    <h4 className="text-sm font-medium text-gray-300 mb-3">基本信息</h4>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
-                      <div>
-                        <span className="text-gray-500">时间</span>
-                        <div className="text-white">{selectedLog.created_at ? new Date(selectedLog.created_at).toLocaleString() : '-'}</div>
-                      </div>
-                      <div>
-                        <span className="text-gray-500">状态</span>
-                        <div className={`${getStatusCodeColor(selectedLog.status_code)} px-2 py-0.5 rounded inline-block`}>
-                          错误 - {selectedLog.status_code}
-                        </div>
-                      </div>
-                      <div>
-                        <span className="text-gray-500">耗时(ms)</span>
-                        <div className="text-white">{selectedLog.latency_ms?.toFixed(0) || '-'}</div>
-                      </div>
-                      <div>
-                        <span className="text-gray-500">分组</span>
-                        <div className="text-white">{selectedLog.username || '-'}</div>
-                      </div>
-                      <div>
-                        <span className="text-gray-500">模型</span>
-                        <div className="text-cyan-400 font-mono text-xs">{selectedLog.model || '-'}</div>
-                      </div>
-                      <div>
-                        <span className="text-gray-500">源IP</span>
-                        <div className="text-white font-mono text-xs">{selectedLog.client_ip || '-'}</div>
-                      </div>
-                      <div className="col-span-2">
-                        <span className="text-gray-500">凭证</span>
-                        <div className="text-white text-xs">{selectedLog.credential_email || '-'}</div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* 请求信息 */}
-                  <div className="bg-gray-700/50 rounded-lg p-4">
-                    <h4 className="text-sm font-medium text-gray-300 mb-3">请求信息</h4>
-                    <div className="space-y-3">
-                      <div className="bg-gray-800 rounded p-3 relative group">
-                        <div className="text-gray-500 text-xs mb-1">请求路径</div>
-                        <div className="text-white font-mono text-sm break-all">{selectedLog.endpoint || '-'}</div>
-                        <button 
-                          onClick={() => copyToClipboard(selectedLog.endpoint || '')}
-                          className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 text-gray-400 hover:text-white"
-                        >
-                          {copied ? <Check size={14} /> : <Copy size={14} />}
-                        </button>
-                      </div>
-                      <div className="bg-gray-800 rounded p-3 relative group">
-                        <div className="text-gray-500 text-xs mb-1">User Agent</div>
-                        <div className="text-white font-mono text-xs break-all">{selectedLog.user_agent || '-'}</div>
-                      </div>
-                      {selectedLog.request_body && (
-                        <div className="bg-gray-800 rounded p-3 relative group">
-                          <div className="text-gray-500 text-xs mb-1">请求内容</div>
-                          <pre className="text-white font-mono text-xs overflow-x-auto max-h-40 whitespace-pre-wrap">
-                            {(() => {
-                              try {
-                                return JSON.stringify(JSON.parse(selectedLog.request_body), null, 2)
-                              } catch {
-                                return selectedLog.request_body
-                              }
-                            })()}
-                          </pre>
-                          <button 
-                            onClick={() => copyToClipboard(selectedLog.request_body || '')}
-                            className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 text-gray-400 hover:text-white"
-                          >
-                            {copied ? <Check size={14} /> : <Copy size={14} />}
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* 错误信息 */}
-                  {selectedLog.error_message && (
-                    <div className="bg-red-900/30 border border-red-500/30 rounded-lg p-4">
-                      <h4 className="text-sm font-medium text-red-400 mb-3">错误信息</h4>
-                      <div className="bg-gray-900 rounded p-3 relative group">
-                        <pre className="text-red-300 font-mono text-xs overflow-x-auto max-h-60 whitespace-pre-wrap">
-                          {selectedLog.error_message}
-                        </pre>
-                        <button 
-                          onClick={() => copyToClipboard(selectedLog.error_message || '')}
-                          className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 text-gray-400 hover:text-white"
-                        >
-                          {copied ? <Check size={14} /> : <Copy size={14} />}
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              <div className="border-t border-gray-700 p-4 flex justify-end">
-                <button
-                  onClick={() => setSelectedLog(null)}
-                  className="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg"
-                >
-                  关闭
-                </button>
-              </div>
-            </div>
-          </div>
+           </div>
         )}
+
+        {errorStats ? (
+           <>
+             <Table 
+                columns={errorColumns}
+                data={errorStats.errors || []}
+                emptyMessage="暂无报错记录"
+             />
+             {errorStats.total_pages > 1 && (
+                <div className="p-4 border-t border-white/5 flex items-center justify-center gap-4">
+                   <Button size="sm" variant="secondary" onClick={() => fetchErrorStats(errorPage - 1)} disabled={errorPage <= 1 || errorLoading}>上一页</Button>
+                   <span className="text-sm text-dark-400">{errorPage} / {errorStats.total_pages}</span>
+                   <Button size="sm" variant="secondary" onClick={() => fetchErrorStats(errorPage + 1)} disabled={errorPage >= errorStats.total_pages || errorLoading}>下一页</Button>
+                </div>
+             )}
+           </>
+        ) : !errorLoading && (
+           <div className="p-12 text-center text-dark-400">
+              点击刷新按钮加载详细数据
+           </div>
+        )}
+      </Card>
+
+      {/* 日志详情 Modal */}
+      {selectedLog && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in">
+           <div className="bg-bg-card border border-white/10 rounded-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto shadow-2xl animate-slide-up">
+              <div className="sticky top-0 bg-bg-card/95 backdrop-blur border-b border-white/5 p-5 flex items-center justify-between z-10">
+                 <h3 className="text-lg font-semibold">请求详情</h3>
+                 <button onClick={() => setSelectedLog(null)} className="p-2 hover:bg-white/5 rounded-lg transition-colors">
+                    <X size={20} className="text-dark-400" />
+                 </button>
+              </div>
+
+              <div className="p-6 space-y-6">
+                 {/* 基本信息 Grid */}
+                 <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                    <DetailItem label="时间" value={new Date(selectedLog.created_at).toLocaleString()} />
+                    <DetailItem label="状态">
+                       <span className={`px-2 py-0.5 rounded text-xs ${getStatusCodeColor(selectedLog.status_code)}`}>
+                          {selectedLog.status_code}
+                       </span>
+                    </DetailItem>
+                    <DetailItem label="耗时" value={`${selectedLog.latency_ms?.toFixed(0)} ms`} />
+                    <DetailItem label="用户" value={selectedLog.username} />
+                    <DetailItem label="模型" value={selectedLog.model} valueClass="text-cyan-400 font-mono" />
+                    <DetailItem label="IP" value={selectedLog.client_ip} valueClass="font-mono" />
+                 </div>
+
+                 {/* Code Blocks */}
+                 <CodeBlock label="Request Path" content={selectedLog.endpoint} onCopy={() => handleCopy(selectedLog.endpoint)} copied={copied} />
+                 
+                 {selectedLog.error_message && (
+                    <CodeBlock label="Error Message" content={selectedLog.error_message} isError onCopy={() => handleCopy(selectedLog.error_message)} copied={copied} />
+                 )}
+                 
+                 {selectedLog.request_body && (
+                    <CodeBlock label="Request Body" content={selectedLog.request_body} isJson onCopy={() => handleCopy(selectedLog.request_body)} copied={copied} />
+                 )}
+              </div>
+           </div>
+        </div>
+      )}
+    </PageLayout>
+  );
+}
+
+// 辅助组件
+function StatsMetric({ label, value, color }) {
+   return (
+      <div className="bg-dark-900/50 rounded-xl p-4 border border-white/5">
+         <div className={`text-2xl font-bold ${color} mb-1`}>{value}</div>
+         <div className="text-xs text-dark-400 uppercase tracking-wide">{label}</div>
       </div>
-    </div>
-  )
+   );
+}
+
+function OverviewCard({ title, value, gradient, border, textColor }) {
+   return (
+      <div className={`bg-gradient-to-br ${gradient} border ${border} rounded-2xl p-6`}>
+         <h3 className={`text-sm font-medium ${textColor} mb-2 opacity-80`}>{title}</h3>
+         <p className="text-3xl font-bold text-white tracking-tight">{value}</p>
+      </div>
+   );
+}
+
+function ProgressBar({ label, value, max, color }) {
+   const percent = Math.min(100, (value / max) * 100);
+   return (
+      <div className="flex items-center gap-4">
+         <span className="text-sm text-dark-300 w-32 truncate text-right">{label}</span>
+         <div className="flex-1 h-2 bg-dark-800 rounded-full overflow-hidden">
+            <div className={`h-full rounded-full ${color}`} style={{ width: `${percent}%` }} />
+         </div>
+         <span className="text-sm font-medium text-dark-100 w-16 tabular-nums text-right">{value}</span>
+      </div>
+   );
+}
+
+function DetailItem({ label, value, valueClass = 'text-dark-100', children }) {
+   return (
+      <div className="bg-dark-900/50 p-3 rounded-lg border border-white/5">
+         <div className="text-xs text-dark-500 mb-1">{label}</div>
+         <div className={`text-sm ${valueClass} truncate`}>{children || value || '-'}</div>
+      </div>
+   );
+}
+
+function CodeBlock({ label, content, isError, isJson, onCopy, copied }) {
+   let displayContent = content;
+   if (isJson) {
+      try {
+         displayContent = JSON.stringify(JSON.parse(content), null, 2);
+      } catch (e) {}
+   }
+
+   return (
+      <div className={`rounded-xl border ${isError ? 'bg-red-900/10 border-red-500/20' : 'bg-dark-950 border-dark-800'} overflow-hidden`}>
+         <div className="px-4 py-2 border-b border-white/5 bg-white/5 flex items-center justify-between">
+            <span className={`text-xs font-medium ${isError ? 'text-red-400' : 'text-dark-400'}`}>{label}</span>
+            <button onClick={onCopy} className="text-dark-500 hover:text-white transition-colors">
+               {copied ? <Check size={14} /> : <Copy size={14} />}
+            </button>
+         </div>
+         <div className="p-4 overflow-x-auto">
+            <pre className={`text-xs font-mono whitespace-pre-wrap ${isError ? 'text-red-300' : 'text-dark-300'}`}>
+               {displayContent}
+            </pre>
+         </div>
+      </div>
+   );
 }

@@ -1,73 +1,86 @@
-import { Cat, Eye, EyeOff } from 'lucide-react'
-import { useEffect, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
-import api from '../api'
-import { useAuth } from '../App'
+import { Cat, Eye, EyeOff } from 'lucide-react';
+import { useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import api from '../api';
+import { useAuth } from '../App';
+import { Button } from '../components/common/Button';
+import { Card } from '../components/common/Card';
 
 export default function Login() {
-  const [username, setUsername] = useState('')
-  const [password, setPassword] = useState('')
-  const [showPassword, setShowPassword] = useState(false)
-  const [error, setError] = useState('')
-  const [loading, setLoading] = useState(false)
-  const { login } = useAuth()
-  const navigate = useNavigate()
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+  const { login } = useAuth();
+  const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
-    e.preventDefault()
-    setError('')
-    setLoading(true)
+    e.preventDefault();
+    setError('');
+    setLoading(true);
 
     try {
-      const res = await api.post('/api/auth/login', { username, password })
-      login(res.data.access_token, res.data.user)
-      navigate('/dashboard')
+      const res = await api.post('/api/auth/login', { username, password });
+      login(res.data.access_token, res.data.user);
+      navigate('/dashboard');
     } catch (err) {
-      setError(err.response?.data?.detail || '登录失败')
+      setError(err.response?.data?.detail || '登录失败');
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
+    <div className="min-h-screen flex items-center justify-center p-4 bg-bg-main relative overflow-hidden">
+      {/* Background Blobs */}
+      <div className="absolute top-[-10%] left-[-10%] w-[500px] h-[500px] bg-primary-900/20 rounded-full blur-[120px] pointer-events-none" />
+      <div className="absolute bottom-[-10%] right-[-10%] w-[500px] h-[500px] bg-blue-900/10 rounded-full blur-[120px] pointer-events-none" />
+
+      <div className="w-full max-w-md relative z-10 animate-slide-up">
         {/* Logo */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-purple-600/20 mb-4">
-            <Cat className="w-10 h-10 text-purple-400" />
+          <div className="inline-flex items-center justify-center w-20 h-20 rounded-3xl bg-primary-500/10 mb-6 border border-primary-500/20 shadow-[0_0_30px_rgba(139,92,246,0.15)]">
+            <Cat className="w-10 h-10 text-primary-400" />
           </div>
-          <h1 className="text-3xl font-bold text-white">Catiecli</h1>
-          <p className="text-gray-400 mt-2">Gemini API 多用户代理服务</p>
+          <h1 className="text-4xl font-bold text-dark-50 tracking-tight">
+            Catiecli
+          </h1>
+          <p className="text-dark-400 mt-3 text-lg">
+            Gemini API 多用户代理服务
+          </p>
         </div>
 
         {/* 登录卡片 */}
-        <div className="card">
-          <h2 className="text-xl font-semibold mb-6 text-center">登录账户</h2>
+        <Card className="shadow-2xl shadow-black/50 backdrop-blur-sm bg-bg-card/80 border-white/5">
+          <h2 className="text-xl font-semibold mb-8 text-center text-dark-100">
+            欢迎回来
+          </h2>
 
           {error && (
-            <div className="bg-red-500/10 border border-red-500/30 text-red-400 px-4 py-3 rounded-lg mb-4">
+            <div className="bg-red-500/10 border border-red-500/20 text-red-400 px-4 py-3 rounded-xl mb-6 text-sm flex items-center gap-2 animate-fade-in">
+              <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
               {error}
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-6">
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">
+              <label className="block text-sm font-medium text-dark-300 mb-2 ml-1">
                 用户名
               </label>
               <input
                 type="text"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                className="w-full px-4 py-3 bg-dark-800 border border-dark-600 rounded-lg text-white placeholder-gray-500"
+                className="w-full px-5 py-3 bg-dark-800/50 border border-transparent rounded-xl text-dark-50 placeholder-dark-500 focus:bg-dark-800 focus:border-primary-500/50 focus:ring-4 focus:ring-primary-500/10 transition-all duration-200 outline-none"
                 placeholder="请输入用户名"
                 required
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">
+              <label className="block text-sm font-medium text-dark-300 mb-2 ml-1">
                 密码
               </label>
               <div className="relative">
@@ -75,41 +88,40 @@ export default function Login() {
                   type={showPassword ? 'text' : 'password'}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full px-4 py-3 bg-dark-800 border border-dark-600 rounded-lg text-white placeholder-gray-500 pr-12"
+                  className="w-full px-5 py-3 bg-dark-800/50 border border-transparent rounded-xl text-dark-50 placeholder-dark-500 focus:bg-dark-800 focus:border-primary-500/50 focus:ring-4 focus:ring-primary-500/10 transition-all duration-200 outline-none pr-12"
                   placeholder="请输入密码"
                   required
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-300"
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-dark-500 hover:text-dark-300 transition-colors p-1"
                 >
-                  {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                 </button>
               </div>
             </div>
 
-            <button
+            <Button
               type="submit"
-              disabled={loading}
-              className="w-full btn btn-primary py-3 flex items-center justify-center"
+              loading={loading}
+              className="w-full py-3.5 text-lg shadow-lg shadow-primary-500/20"
             >
-              {loading ? (
-                <span className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></span>
-              ) : (
-                '登录'
-              )}
-            </button>
+              登录
+            </Button>
           </form>
 
-          <p className="text-center text-gray-400 mt-6">
+          <p className="text-center text-dark-400 mt-8 text-sm">
             还没有账号？{' '}
-            <Link to="/register" className="text-purple-400 hover:text-purple-300">
+            <Link
+              to="/register"
+              className="text-primary-400 hover:text-primary-300 font-medium hover:underline underline-offset-4 transition-all"
+            >
               立即注册
             </Link>
           </p>
-        </div>
+        </Card>
       </div>
     </div>
-  )
+  );
 }

@@ -1,109 +1,127 @@
-import { createContext, useContext, useEffect, useState } from 'react'
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
-import api from './api'
-import Announcement from './components/Announcement'
-import Admin from './pages/Admin'
-import Credentials from './pages/Credentials'
-import Dashboard from './pages/Dashboard'
-import Login from './pages/Login'
-import OAuth from './pages/OAuth'
-import Register from './pages/Register'
-import Settings from './pages/Settings'
-import Stats from './pages/Stats'
-import MyStats from './pages/MyStats'
-import OpenAIEndpoints from './pages/OpenAIEndpoints'
+import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
+import Announcement from './components/Announcement';
+import { FullPageLoading } from './components/common/Loading';
+import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { ToastProvider } from './contexts/ToastContext';
 
-// 认证上下文
-export const AuthContext = createContext(null)
+// 页面导入
+import Admin from './pages/admin/index';
+import Credentials from './pages/Credentials';
+import Dashboard from './pages/dashboard/index';
+import Login from './pages/Login';
+import MyStats from './pages/MyStats';
+import OAuth from './pages/OAuth';
+import OpenAIEndpoints from './pages/OpenAIEndpoints';
+import Register from './pages/Register';
+import Settings from './pages/Settings';
+import Stats from './pages/Stats';
 
-export function useAuth() {
-  return useContext(AuthContext)
-}
+// 保留旧的导出以保持兼容性
+export { AuthContext, useAuth } from './contexts/AuthContext';
 
 function ProtectedRoute({ children, adminOnly = false }) {
-  const { user, loading } = useAuth()
-  
+  const { user, loading } = useAuth();
+
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-500"></div>
-      </div>
-    )
+    return <FullPageLoading />;
   }
-  
+
   if (!user) {
-    return <Navigate to="/login" />
+    return <Navigate to="/login" />;
   }
-  
+
   if (adminOnly && !user.is_admin) {
-    return <Navigate to="/dashboard" />
+    return <Navigate to="/dashboard" />;
   }
-  
-  return children
+
+  return children;
+}
+
+function AppRoutes() {
+  return (
+    <Routes>
+      <Route path="/login" element={<Login />} />
+      <Route path="/register" element={<Register />} />
+      <Route
+        path="/dashboard"
+        element={
+          <ProtectedRoute>
+            <Dashboard />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin"
+        element={
+          <ProtectedRoute adminOnly>
+            <Admin />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/oauth"
+        element={
+          <ProtectedRoute>
+            <OAuth />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/credentials"
+        element={
+          <ProtectedRoute>
+            <Credentials />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/stats"
+        element={
+          <ProtectedRoute adminOnly>
+            <Stats />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/my-stats"
+        element={
+          <ProtectedRoute>
+            <MyStats />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/settings"
+        element={
+          <ProtectedRoute adminOnly>
+            <Settings />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/openai-endpoints"
+        element={
+          <ProtectedRoute adminOnly>
+            <OpenAIEndpoints />
+          </ProtectedRoute>
+        }
+      />
+      <Route path="/" element={<Navigate to="/dashboard" />} />
+    </Routes>
+  );
 }
 
 function App() {
-  const [user, setUser] = useState(null)
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    const token = localStorage.getItem('token')
-    if (token) {
-      api.get('/api/auth/me')
-        .then(res => setUser(res.data))
-        .catch(() => localStorage.removeItem('token'))
-        .finally(() => setLoading(false))
-    } else {
-      setLoading(false)
-    }
-  }, [])
-
-  const login = (token, userData) => {
-    localStorage.setItem('token', token)
-    setUser(userData)
-  }
-
-  const logout = () => {
-    localStorage.removeItem('token')
-    setUser(null)
-  }
-
   return (
-    <AuthContext.Provider value={{ user, login, logout, loading }}>
-      <BrowserRouter>
-        <Announcement />
-        <Routes>
-          <Route path="/login" element={<Login />} />
-          <Route path="/register" element={<Register />} />
-          <Route path="/dashboard" element={
-            <ProtectedRoute><Dashboard /></ProtectedRoute>
-          } />
-          <Route path="/admin" element={
-            <ProtectedRoute adminOnly><Admin /></ProtectedRoute>
-          } />
-          <Route path="/oauth" element={
-            <ProtectedRoute><OAuth /></ProtectedRoute>
-          } />
-          <Route path="/credentials" element={
-            <ProtectedRoute><Credentials /></ProtectedRoute>
-          } />
-          <Route path="/stats" element={
-            <ProtectedRoute adminOnly><Stats /></ProtectedRoute>
-          } />
-          <Route path="/my-stats" element={
-            <ProtectedRoute><MyStats /></ProtectedRoute>
-          } />
-          <Route path="/settings" element={
-            <ProtectedRoute adminOnly><Settings /></ProtectedRoute>
-          } />
-          <Route path="/openai-endpoints" element={
-            <ProtectedRoute adminOnly><OpenAIEndpoints /></ProtectedRoute>
-          } />
-          <Route path="/" element={<Navigate to="/dashboard" />} />
-        </Routes>
-      </BrowserRouter>
-    </AuthContext.Provider>
-  )
+    <AuthProvider>
+      <ToastProvider>
+        <BrowserRouter>
+          <Announcement />
+          <AppRoutes />
+        </BrowserRouter>
+      </ToastProvider>
+    </AuthProvider>
+  );
 }
 
-export default App
+export default App;
