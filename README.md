@@ -239,7 +239,7 @@ docker-compose up -d
 docker-compose logs -f
 ```
 
-访问 `http://你的IP:5001` 即可
+访问 `http://你的IP:10601` 即可
 
 ---
 
@@ -310,7 +310,7 @@ DATABASE_URL=sqlite+aiosqlite:///./data/gemini_proxy.db
 # DATABASE_URL=postgresql+asyncpg://用户名:密码@主机:5432/数据库名
 
 # 服务端口（使用域名反代可不配置）
-PORT=5001
+PORT=10601
 
 # 默认用户每日配额
 DEFAULT_DAILY_QUOTA=100
@@ -394,7 +394,7 @@ cd /opt/catiecli && git pull && docker-compose up -d --build
 - **修改管理员**用户名/密码后重启即生效，旧管理员自动降级
 - **前端已构建**，无需手动 npm build
 - **默认账号**：`admin` / `admin123`（请立即修改！）
-- **默认端口**：`5001`，可通过环境变量 `PORT` 自定义
+- **默认端口**：`10601`，可通过环境变量 `PORT` 自定义
 - **Google OAuth**：已内置 Gemini CLI 官方凭据，无需配置即可使用
 
 ### 关于 Google OAuth 凭据
@@ -412,7 +412,7 @@ cd /opt/catiecli && git pull && docker-compose up -d --build
 | 部署方式                 | 默认端口 | 能否修改   | 说明                           |
 | ------------------------ | -------- | ---------- | ------------------------------ |
 | **Zeabur**               | `8080`   | ❌ 不能改   | Zeabur 平台固定要求 8080       |
-| **Docker/命令行**        | `5001`   | ✅ 可自定义 | 通过 `PORT` 环境变量修改       |
+| **Docker/命令行**        | `10601`  | ✅ 可自定义 | 通过 `PORT` 环境变量修改       |
 | **域名反向代理**         | 无所谓   | -          | 用户只看到域名，端口由代理处理 |
 
 ---

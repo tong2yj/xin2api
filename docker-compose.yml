@@ -6,11 +6,11 @@ services:
     build: ./backend
     container_name: catiecli-backend
     ports:
-      - '${PORT:-5001}:${PORT:-5001}'
+      - '${PORT:-10601}:${PORT:-10601}'
     volumes:
       - ./data:/app/data
     env_file:
       - .env
     environment:
-      - PORT=${PORT:-5001}
+      - PORT=${PORT:-10601}
     restart: unless-stopped
