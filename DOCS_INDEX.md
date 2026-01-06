@@ -12,7 +12,7 @@
 - 多种部署方式（Zeabur、1Panel、Docker Compose）
 - 更新升级指南
 - 常见问题 FAQ
-- 配置说明（环境变量、Discord OAuth、PostgreSQL）
+- 配置说明（环境变量、PostgreSQL）
 
 ### ⚡ [ANTIGRAVITY.md](./ANTIGRAVITY.md)
 **Antigravity 反代功能完整文档**

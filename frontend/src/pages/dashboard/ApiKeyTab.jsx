@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import api from '../../api/index';
 import { Button } from '../../components/common/Button';
 import { CardHeader } from '../../components/common/Card';
+import { ConfirmModal } from '../../components/modals/Modal';
 import { useToast } from '../../contexts/ToastContext';
 import { copyToClipboard } from '../../utils/clipboard';
 
@@ -12,6 +13,7 @@ export default function ApiKeyTab({ userInfo, rpmConfig }) {
   const [keyLoading, setKeyLoading] = useState(true);
   const [keyCopied, setKeyCopied] = useState(false);
   const [regenerating, setRegenerating] = useState(false);
+  const [confirmModal, setConfirmModal] = useState({ open: false, title: '', message: '', onConfirm: null });
 
   const apiEndpoint = `${window.location.origin}/v1`;
 
@@ -45,19 +47,26 @@ export default function ApiKeyTab({ userInfo, rpmConfig }) {
     }
   };
 
-  const regenerateKey = async () => {
+  const regenerateKey = () => {
     if (!myKey?.id) return;
-    if (!confirm('确定要重新生成 API 密钥吗？旧密钥将立即失效！')) return;
-    setRegenerating(true);
-    try {
-      const res = await api.post(`/api/auth/api-keys/${myKey.id}/regenerate`);
-      setMyKey({ ...myKey, key: res.data.key });
-      toast.success('密钥已重新生成');
-    } catch (err) {
-      toast.error('重新生成失败');
-    } finally {
-      setRegenerating(false);
-    }
+    setConfirmModal({
+      open: true,
+      title: '重置 API 密钥',
+      message: '确定要重新生成 API 密钥吗？\n\n旧密钥将立即失效，所有使用旧密钥的应用都需要更新！',
+      danger: true,
+      onConfirm: async () => {
+        setRegenerating(true);
+        try {
+          const res = await api.post(`/api/auth/api-keys/${myKey.id}/regenerate`);
+          setMyKey({ ...myKey, key: res.data.key });
+          toast.success('密钥已重新生成');
+        } catch (err) {
+          toast.error('重新生成失败');
+        } finally {
+          setRegenerating(false);
+        }
+      }
+    });
   };
 
   if (keyLoading) {
@@ -166,6 +175,15 @@ export default function ApiKeyTab({ userInfo, rpmConfig }) {
           </div>
         </div>
       </div>
+
+      <ConfirmModal
+        isOpen={confirmModal.open}
+        onClose={() => setConfirmModal({ ...confirmModal, open: false })}
+        onConfirm={confirmModal.onConfirm}
+        title={confirmModal.title}
+        message={confirmModal.message}
+        danger={confirmModal.danger}
+      />
     </>
   );
 }

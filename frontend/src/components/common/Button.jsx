@@ -24,14 +24,23 @@ export function Button({
     success: 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm',
     // Warning: Amber
     warning: 'bg-amber-600 hover:bg-amber-500 text-white shadow-sm',
+    // Info: Cyan (Used for Verify)
+    info: 'bg-cyan-600 hover:bg-cyan-500 text-white shadow-sm',
+    // Blue: Blue (Used for Export/OAuth)
+    blue: 'bg-blue-600 hover:bg-blue-500 text-white shadow-sm',
     // Ghost: Transparent
     ghost: 'bg-transparent hover:bg-dark-800 text-dark-400 hover:text-dark-100',
+    // Ghost Variations
+    'ghost-primary': 'bg-transparent hover:bg-primary-500/10 text-dark-400 hover:text-primary-400',
+    'ghost-danger': 'bg-transparent hover:bg-red-500/10 text-dark-400 hover:text-red-400',
   };
 
   const sizes = {
     sm: 'px-3 py-1.5 text-sm',
     md: 'px-5 py-2.5',
     lg: 'px-8 py-3.5 text-lg',
+    icon: 'p-2 aspect-square',
+    'icon-sm': 'p-1.5 aspect-square',
   };
 
   return (
@@ -52,9 +61,9 @@ export function Button({
       {loading ? (
         <RefreshCw size={size === 'sm' ? 14 : 18} className="animate-spin" />
       ) : Icon ? (
-        <Icon size={size === 'sm' ? 14 : 18} />
+        <Icon size={size === 'sm' || size === 'icon-sm' ? 14 : 18} />
       ) : null}
-      <span className="relative z-10 flex items-center gap-2">{children}</span>
+      {children && <span className="relative z-10 flex items-center gap-2">{children}</span>}
     </button>
   );
 }

@@ -6,15 +6,10 @@ import { ToastProvider } from './contexts/ToastContext';
 
 // 页面导入
 import Admin from './pages/admin/index';
-import Credentials from './pages/Credentials';
 import Dashboard from './pages/dashboard/index';
 import Login from './pages/Login';
-import MyStats from './pages/MyStats';
 import OAuth from './pages/OAuth';
-import OpenAIEndpoints from './pages/OpenAIEndpoints';
 import Register from './pages/Register';
-import Settings from './pages/Settings';
-import Stats from './pages/Stats';
 
 // 保留旧的导出以保持兼容性
 export { AuthContext, useAuth } from './contexts/AuthContext';
@@ -63,46 +58,6 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <OAuth />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/credentials"
-        element={
-          <ProtectedRoute>
-            <Credentials />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/stats"
-        element={
-          <ProtectedRoute adminOnly>
-            <Stats />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/my-stats"
-        element={
-          <ProtectedRoute>
-            <MyStats />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/settings"
-        element={
-          <ProtectedRoute adminOnly>
-            <Settings />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/openai-endpoints"
-        element={
-          <ProtectedRoute adminOnly>
-            <OpenAIEndpoints />
           </ProtectedRoute>
         }
       />

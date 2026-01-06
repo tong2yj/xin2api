@@ -5,6 +5,7 @@ import {
   RefreshCw,
   Trash2,
 } from 'lucide-react';
+import { Button } from '../common/Button';
 import { formatDate } from '../../utils/format';
 
 /**
@@ -122,63 +123,66 @@ export function CredentialCard({
         <div className="flex items-center gap-2 flex-wrap">
           {/* 配额 */}
           {onViewQuota && (
-            <button
+            <Button
+              size="sm"
+              variant="primary"
               onClick={() => onViewQuota(cred.id)}
-              disabled={loadingQuota}
-              className="px-3 py-1.5 rounded text-xs font-medium bg-indigo-600 hover:bg-indigo-500 text-white disabled:opacity-50 flex items-center gap-1"
+              loading={loadingQuota}
+              icon={BarChart2}
+              className="!text-xs !py-1.5"
               title="查看配额"
             >
-              <BarChart2 size={12} />
               配额
-            </button>
+            </Button>
           )}
 
           {/* 检测 */}
           {onVerify && (
-            <button
+            <Button
+              size="sm"
+              variant="info"
               onClick={() => onVerify(cred.id, cred.email || cred.name)}
               disabled={verifying}
-              className="px-3 py-1.5 rounded text-xs font-medium bg-cyan-600 hover:bg-cyan-500 text-white disabled:opacity-50 flex items-center gap-1"
+              loading={verifying}
+              icon={CheckCircle}
+              className="!text-xs !py-1.5"
             >
-              {verifying ? (
-                <RefreshCw size={12} className="animate-spin" />
-              ) : (
-                <CheckCircle size={12} />
-              )}
               检测
-            </button>
+            </Button>
           )}
 
           {/* 导出 */}
           {onExport && (
-            <button
+            <Button
+              size="sm"
+              variant="blue"
               onClick={() => onExport(cred.id, cred.email)}
-              className="px-3 py-1.5 rounded text-xs font-medium bg-blue-600 hover:bg-blue-500 text-white flex items-center gap-1"
+              icon={Download}
+              className="!text-xs !py-1.5"
             >
-              <Download size={12} />
               导出
-            </button>
+            </Button>
           )}
 
           {/* 启用/禁用 */}
           {onToggleActive && (
-            <button
+            <Button
+              size="sm"
+              variant={cred.is_active ? 'warning' : 'success'}
               onClick={() => onToggleActive(cred.id, cred.is_active)}
-              className={`px-3 py-1.5 rounded text-xs font-medium ${
-                cred.is_active
-                  ? 'bg-amber-600 hover:bg-amber-500 text-white'
-                  : 'bg-green-600 hover:bg-green-500 text-white'
-              }`}
+              className="!text-xs !py-1.5"
             >
               {cred.is_active ? '禁用' : '启用'}
-            </button>
+            </Button>
           )}
 
           {/* 捐赠/取消捐赠 */}
           {onTogglePublic &&
             !forceDonate &&
             !(lockDonate && cred.is_public && cred.is_active) && (
-              <button
+              <Button
+                size="sm"
+                variant={cred.is_public ? 'secondary' : (!cred.is_active ? 'secondary' : 'primary')}
                 onClick={() => onTogglePublic(cred.id, cred.is_public)}
                 disabled={!cred.is_public && !cred.is_active}
                 title={
@@ -186,27 +190,23 @@ export function CredentialCard({
                     ? '请先检测凭证有效后再设为公开'
                     : ''
                 }
-                className={`px-3 py-1.5 rounded text-xs font-medium ${
-                  cred.is_public
-                    ? 'bg-gray-600 hover:bg-gray-500 text-white'
-                    : !cred.is_active
-                    ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
-                    : 'bg-purple-600 hover:bg-purple-500 text-white'
+                className={`!text-xs !py-1.5 ${
+                  !cred.is_public && !cred.is_active ? '!cursor-not-allowed !text-gray-500 !bg-dark-700' : ''
                 }`}
               >
                 {cred.is_public ? '取消公开' : '设为公开'}
-              </button>
+              </Button>
             )}
 
           {/* 删除 */}
           {onDelete && (
-            <button
+            <Button
+              variant="ghost-danger"
+              size="icon-sm"
               onClick={() => onDelete(cred.id)}
-              className="p-1.5 text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded"
               title="删除"
-            >
-              <Trash2 size={16} />
-            </button>
+              icon={Trash2}
+            />
           )}
         </div>
       </div>

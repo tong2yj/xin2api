@@ -27,7 +27,7 @@ export function PageLayout({
   const rightContent = (
     <div className="flex items-center gap-3 sm:gap-4">
       <span className="text-dark-300 text-sm hidden sm:inline font-medium">
-        {user?.discord_name || user?.username}
+        {user?.username}
       </span>
       <Button
         variant="danger"

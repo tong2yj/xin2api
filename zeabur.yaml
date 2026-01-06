@@ -2,14 +2,13 @@ apiVersion: zeabur.com/v1
 kind: Template
 metadata:
   name: CatieCli
-  description: Gemini API 多用户代理服务 - 支持 OpenAI 兼容接口、Gemini 原生接口、凭证池管理、Discord Bot
+  description: Gemini API 多用户代理服务 - 支持 OpenAI 兼容接口、Gemini 原生接口、凭证池管理
   icon: https://raw.githubusercontent.com/mzrodyu/CatieCli/main/frontend/public/cat.svg
   tags:
     - API
     - Gemini
     - Proxy
     - OpenAI
-    - Discord
   author: Catie猫猫
   sourceCodeUrl: https://github.com/mzrodyu/CatieCli
 
@@ -38,10 +37,9 @@ spec:
         - key: ALLOW_REGISTRATION
           description: 是否允许注册（true/false）
           default: 'true'
-        - key: DISCORD_CLIENT_ID
-          description: Discord OAuth 客户端 ID（可选，用于 Discord 登录）
-        - key: DISCORD_CLIENT_SECRET
-          description: Discord OAuth 客户端密钥（可选）
+        - key: GEMINI_TIMEOUT
+          description: Gemini API 请求超时时间（秒）
+          default: "60"
         - key: PORT
           description: 服务端口（Zeabur必须8080，请勿修改）
           default: '8080'

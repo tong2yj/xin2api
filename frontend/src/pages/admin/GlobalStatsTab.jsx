@@ -1,15 +1,12 @@
-import { AlertTriangle, BarChart2, Check, ChevronDown, ChevronUp, Copy, RefreshCw, X } from 'lucide-react';
+import { AlertTriangle, BarChart2, Check, Copy, RefreshCw, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import api from '../api';
-import { Button } from '../components/common/Button';
-import { Card, CardHeader } from '../components/common/Card';
-import { Table } from '../components/common/Table';
-import { PageLayout } from '../components/layout/PageLayout';
-import { copyToClipboard } from '../utils/clipboard';
+import api from '../../api';
+import { Button } from '../../components/common/Button';
+import { Card, CardHeader } from '../../components/common/Card';
+import { Table } from '../../components/common/Table';
+import { copyToClipboard } from '../../utils/clipboard';
 
-export default function Stats() {
-  const navigate = useNavigate();
+export default function GlobalStatsTab() {
   const [overview, setOverview] = useState(null);
   const [globalStats, setGlobalStats] = useState(null);
   const [byModel, setByModel] = useState([]);
@@ -24,7 +21,6 @@ export default function Stats() {
   const [errorLoading, setErrorLoading] = useState(false);
   const [expandedCodes, setExpandedCodes] = useState({});
   const [selectedLog, setSelectedLog] = useState(null);
-  const [logDetailLoading, setLogDetailLoading] = useState(false);
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
@@ -33,30 +29,25 @@ export default function Stats() {
 
   const fetchStats = async () => {
     setLoading(true);
-    const results = await Promise.allSettled([
-      api.get('/api/manage/stats/overview'),
-      api.get('/api/manage/stats/global'),
-      api.get(`/api/manage/stats/by-model?days=${days}`),
-      api.get(`/api/manage/stats/by-user?days=${days}`),
-      api.get(`/api/manage/stats/daily?days=${days}`),
-    ]);
+    try {
+        const results = await Promise.allSettled([
+        api.get('/api/manage/stats/overview'),
+        api.get('/api/manage/stats/global'),
+        api.get(`/api/manage/stats/by-model?days=${days}`),
+        api.get(`/api/manage/stats/by-user?days=${days}`),
+        api.get(`/api/manage/stats/daily?days=${days}`),
+        ]);
 
-    const authError = results.find(r =>
-      r.status === 'rejected' &&
-      (r.reason?.response?.status === 401 || r.reason?.response?.status === 403)
-    );
-    if (authError) {
-      navigate('/login');
-      return;
+        if (results[0].status === 'fulfilled') setOverview(results[0].value.data);
+        if (results[1].status === 'fulfilled') setGlobalStats(results[1].value.data);
+        if (results[2].status === 'fulfilled') setByModel(results[2].value.data.models || []);
+        if (results[3].status === 'fulfilled') setByUser(results[3].value.data.users || []);
+        if (results[4].status === 'fulfilled') setDaily(results[4].value.data.daily || []);
+    } catch (err) {
+        console.error("Failed to fetch stats", err);
+    } finally {
+        setLoading(false);
     }
-
-    if (results[0].status === 'fulfilled') setOverview(results[0].value.data);
-    if (results[1].status === 'fulfilled') setGlobalStats(results[1].value.data);
-    if (results[2].status === 'fulfilled') setByModel(results[2].value.data.models || []);
-    if (results[3].status === 'fulfilled') setByUser(results[3].value.data.users || []);
-    if (results[4].status === 'fulfilled') setDaily(results[4].value.data.daily || []);
-
-    setLoading(false);
   };
 
   const poolModeLabel = {
@@ -79,14 +70,11 @@ export default function Stats() {
   };
 
   const fetchLogDetail = async (logId) => {
-    setLogDetailLoading(true);
     try {
       const res = await api.get(`/api/manage/logs/${logId}`);
       setSelectedLog(res.data);
     } catch (err) {
       console.error('获取日志详情失败', err);
-    } finally {
-      setLogDetailLoading(false);
     }
   };
 
@@ -125,9 +113,20 @@ export default function Stats() {
     }
   ];
 
-  const rightContent = (
-    <div className="flex gap-2 items-center">
-       <select
+  if (loading) {
+    return (
+       <div className="flex items-center justify-center text-dark-400 py-12">
+        <RefreshCw className="animate-spin mr-2" /> 加载中...
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6 animate-fade-in">
+      
+      {/* 顶部工具栏 */}
+      <div className="flex justify-end">
+        <select
           value={days}
           onChange={(e) => setDays(Number(e.target.value))}
           className="bg-dark-800 text-dark-200 border border-dark-700 px-3 py-1.5 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/50"
@@ -136,26 +135,11 @@ export default function Stats() {
           <option value={14}>最近 14 天</option>
           <option value={30}>最近 30 天</option>
         </select>
-        <Button size="sm" variant="secondary" onClick={() => navigate('/dashboard')}>
-          返回仪表盘
-        </Button>
-    </div>
-  );
-
-  if (loading) {
-    return (
-       <div className="min-h-screen bg-bg-main flex items-center justify-center text-dark-400">
-        <RefreshCw className="animate-spin mr-2" /> 加载中...
       </div>
-    );
-  }
 
-  return (
-    <PageLayout maxWidth="7xl" subtitle="使用统计" rightContent={rightContent} showAdminLinks>
-      
       {/* 全站实时统计 Card */}
       {globalStats && (
-        <Card className="mb-8">
+        <Card>
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-lg font-semibold flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
@@ -185,7 +169,7 @@ export default function Stats() {
 
       {/* 历史概览 Grid */}
       {overview && (
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
            <OverviewCard title="今日请求" value={overview.requests.today} gradient="from-blue-600/20 to-blue-900/20" border="border-blue-500/20" textColor="text-blue-400" />
            <OverviewCard title="本周请求" value={overview.requests.week} gradient="from-emerald-600/20 to-emerald-900/20" border="border-emerald-500/20" textColor="text-emerald-400" />
            <OverviewCard title="本月请求" value={overview.requests.month} gradient="from-primary-600/20 to-primary-900/20" border="border-primary-500/20" textColor="text-primary-400" />
@@ -193,7 +177,7 @@ export default function Stats() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         {/* 按模型统计 */}
         <Card>
           <CardHeader icon={BarChart2}>模型使用排行</CardHeader>
@@ -218,7 +202,7 @@ export default function Stats() {
       </div>
 
        {/* 每日趋势 Chart */}
-      <Card className="mb-8">
+      <Card>
         <CardHeader icon={BarChart2}>每日请求趋势</CardHeader>
         <div className="h-64 flex items-end gap-2 pt-4 px-2">
            {daily.length === 0 ? (
@@ -346,7 +330,7 @@ export default function Stats() {
            </div>
         </div>
       )}
-    </PageLayout>
+    </div>
   );
 }
 

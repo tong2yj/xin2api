@@ -246,120 +246,115 @@ export default function CredentialsTab() {
   }
 
   return (
-    <div className="space-y-4">
-      {/* 操作卡片 */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-gradient-to-r from-purple-600/20 to-blue-600/20 border border-purple-500/30 rounded-xl p-4">
-          <div className="font-medium text-purple-400 mb-1">🔐 OAuth 认证</div>
-          <p className="text-sm text-gray-400 mb-3">通过 Google OAuth 获取凭证</p>
-          <Link to="/oauth" className="btn btn-primary flex items-center gap-2 w-full justify-center">
-            <ExternalLink size={16} />
-            去认证
-          </Link>
-        </div>
+    <div className="space-y-6">
+      {/* 操作工具栏 */}
+      <div className="flex flex-col gap-4">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          {/* 左侧：批量维护组 - Mobile Scrollable */}
+          <div className="flex items-center gap-2 overflow-x-auto pb-2 md:pb-0 hide-scrollbar w-full md:w-auto">
+            <Button
+              variant="info"
+              size="sm"
+              onClick={verifyAllCredentials}
+              loading={verifyingAll}
+              icon={Check}
+              className="whitespace-nowrap"
+            >
+              一键检测
+            </Button>
+            <Button
+              variant="warning"
+              size="sm"
+              onClick={startAllCredentials}
+              loading={startingAll}
+              icon={RefreshCw}
+              className="whitespace-nowrap"
+            >
+              一键启动
+            </Button>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={checkDuplicates}
+              icon={Eye}
+              className="whitespace-nowrap"
+            >
+              重复检测
+            </Button>
+          </div>
 
-        <div className="bg-cyan-600/20 border border-cyan-500/30 rounded-xl p-4">
-          <div className="font-medium text-cyan-400 mb-1">🔍 一键检测</div>
-          <p className="text-sm text-gray-400 mb-3">检测所有凭证有效性</p>
-          <button
-            onClick={verifyAllCredentials}
-            disabled={verifyingAll}
-            className="btn bg-cyan-600 hover:bg-cyan-500 text-white flex items-center gap-2 disabled:opacity-50 w-full justify-center"
-          >
-            {verifyingAll ? <RefreshCw size={16} className="animate-spin" /> : <Check size={16} />}
-            {verifyingAll ? '检测中...' : '开始检测'}
-          </button>
-        </div>
-
-        <div className="bg-orange-600/20 border border-orange-500/30 rounded-xl p-4">
-          <div className="font-medium text-orange-400 mb-1">🚀 一键启动</div>
-          <p className="text-sm text-gray-400 mb-3">刷新所有凭证Token</p>
-          <button
-            onClick={startAllCredentials}
-            disabled={startingAll}
-            className="btn bg-orange-600 hover:bg-orange-500 text-white flex items-center gap-2 disabled:opacity-50 w-full justify-center"
-          >
-            {startingAll ? <RefreshCw size={16} className="animate-spin" /> : <RefreshCw size={16} />}
-            {startingAll ? '启动中...' : '一键启动'}
-          </button>
-        </div>
-
-        <div className="bg-green-600/20 border border-green-500/30 rounded-xl p-4">
-          <div className="font-medium text-green-400 mb-1">📦 导出凭证</div>
-          <p className="text-sm text-gray-400 mb-3">导出所有凭证为JSON</p>
-          <button
-            onClick={exportAllCredentials}
-            className="btn bg-green-600 hover:bg-green-500 text-white flex items-center gap-2 w-full justify-center"
-          >
-            <Download size={16} />
-            导出全部
-          </button>
-        </div>
-
-        <div className="bg-red-600/20 border border-red-500/30 rounded-xl p-4">
-          <div className="font-medium text-red-400 mb-1">🗑️ 清理无效</div>
-          <p className="text-sm text-gray-400 mb-3">删除所有无效凭证</p>
-          <button
-            onClick={deleteInactiveCredentials}
-            className="btn bg-red-600 hover:bg-red-500 text-white flex items-center gap-2 w-full justify-center"
-          >
-            <Trash2 size={16} />
-            一键清理
-          </button>
-        </div>
-
-        <div className="bg-yellow-600/20 border border-yellow-500/30 rounded-xl p-4">
-          <div className="font-medium text-yellow-400 mb-1">🔍 重复检测</div>
-          <p className="text-sm text-gray-400 mb-3">检测重复的凭证</p>
-          <button
-            onClick={checkDuplicates}
-            className="btn bg-yellow-600 hover:bg-yellow-500 text-white flex items-center gap-2 w-full justify-center"
-          >
-            <Eye size={16} />
-            开始检测
-          </button>
-        </div>
-      </div>
-
-      {/* 检测结果 */}
-      {verifyResult && (
-        <div className="bg-dark-800 border border-dark-600 rounded-xl p-4">
-          <div className="flex flex-wrap items-center gap-2 md:gap-4">
-            <span className="text-gray-400">检测完成:</span>
-            <span className="text-green-400">✅ 有效 {verifyResult.valid}</span>
-            <span className="text-red-400">❌ 无效 {verifyResult.invalid}</span>
-            <span className="text-purple-400">⭐ Tier3 {verifyResult.tier3}</span>
-            <span className="text-gray-500">总计 {verifyResult.total}</span>
+          {/* 右侧：数据与认证组 - Mobile Scrollable */}
+          <div className="flex items-center gap-2 overflow-x-auto pb-2 md:pb-0 hide-scrollbar w-full md:w-auto md:justify-end">
+            <Link to="/oauth">
+              <Button variant="primary" size="sm" icon={ExternalLink} className="whitespace-nowrap">
+                OAuth 认证
+              </Button>
+            </Link>
+            <Button
+              variant="blue"
+              size="sm"
+              onClick={exportAllCredentials}
+              icon={Download}
+              className="whitespace-nowrap"
+            >
+              导出
+            </Button>
+            <Button
+              variant="danger"
+              size="sm"
+              onClick={deleteInactiveCredentials}
+              icon={Trash2}
+              className="whitespace-nowrap"
+            >
+              清理无效
+            </Button>
           </div>
         </div>
-      )}
 
-      {/* 手动添加凭证 */}
-      <div className="card">
-        <h3 className="font-medium mb-3">手动添加凭证</h3>
-        <div className="flex flex-col md:flex-row gap-3">
+        {/* 检测结果摘要 (紧凑版) */}
+        {verifyResult && (
+          <div className="bg-dark-800/50 border border-dark-600/50 rounded-xl px-4 py-2 flex items-center gap-6 text-sm">
+            <span className="text-gray-400 font-medium">检测完成:</span>
+            <div className="flex items-center gap-4">
+              <span className="text-green-400">✅ 有效 {verifyResult.valid}</span>
+              <span className="text-red-400">❌ 无效 {verifyResult.invalid}</span>
+              <span className="text-purple-400">⭐ Tier3 {verifyResult.tier3}</span>
+              <span className="text-gray-500">总计 {verifyResult.total}</span>
+            </div>
+            <Button variant="ghost" size="sm" onClick={() => setVerifyResult(null)} className="ml-auto !p-1 h-auto">
+              <X size={14} />
+            </Button>
+          </div>
+        )}
+      </div>
+
+      {/* 手动添加凭证 (折叠式或紧凑式) */}
+      <div className="bg-dark-800/30 border border-white/5 rounded-xl p-4">
+        <div className="flex flex-col md:flex-row items-center gap-3">
+          <div className="text-sm font-medium text-dark-300 whitespace-nowrap mr-2">快速添加:</div>
           <input
             type="text"
             value={newCredName}
             onChange={(e) => setNewCredName(e.target.value)}
             placeholder="凭证名称"
-            className="px-4 py-2 bg-dark-800 border border-dark-600 rounded-lg text-white placeholder-gray-500"
+            className="w-full md:w-48 px-3 py-1.5 bg-dark-900 border border-dark-700 rounded-lg text-sm text-white placeholder-gray-500 focus:border-primary-500/50 outline-none"
           />
           <input
             type="text"
             value={newCredKey}
             onChange={(e) => setNewCredKey(e.target.value)}
             placeholder="Gemini API Key"
-            className="flex-1 px-4 py-2 bg-dark-800 border border-dark-600 rounded-lg text-white placeholder-gray-500"
+            className="flex-1 px-3 py-1.5 bg-dark-900 border border-dark-700 rounded-lg text-sm text-white placeholder-gray-500 focus:border-primary-500/50 outline-none"
           />
-          <button
+          <Button
             onClick={addCredential}
             disabled={!newCredName.trim() || !newCredKey.trim()}
-            className="btn btn-primary flex items-center gap-2 disabled:opacity-50"
+            variant="primary"
+            size="sm"
+            icon={Plus}
           >
-            <Plus size={16} />
             添加
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -427,29 +422,29 @@ export default function CredentialsTab() {
                 </td>
                 <td>
                   <div className="flex gap-1">
-                    <button
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
                       onClick={() => viewCredentialDetail(c.id)}
-                      className="p-1.5 rounded hover:bg-dark-700 text-gray-400 hover:text-blue-400"
+                      className="!text-dark-400 hover:!text-primary-400"
                       title="查看详情"
-                    >
-                      <Eye size={16} />
-                    </button>
-                    <button
+                      icon={Eye}
+                    />
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
                       onClick={() => toggleCredActive(c.id, c.is_active)}
-                      className={`p-1.5 rounded hover:bg-dark-700 ${
-                        c.is_active ? 'text-red-400' : 'text-green-400'
-                      }`}
+                      className={c.is_active ? '!text-red-400 hover:!bg-red-500/10' : '!text-green-400 hover:!bg-green-500/10'}
                       title={c.is_active ? '禁用' : '启用'}
-                    >
-                      {c.is_active ? <X size={16} /> : <Check size={16} />}
-                    </button>
-                    <button
+                      icon={c.is_active ? X : Check}
+                    />
+                    <Button
+                      variant="ghost-danger"
+                      size="icon-sm"
                       onClick={() => deleteCredential(c.id)}
-                      className="p-1.5 rounded hover:bg-dark-700 text-gray-400 hover:text-red-400"
                       title="删除"
-                    >
-                      <Trash2 size={16} />
-                    </button>
+                      icon={Trash2}
+                    />
                   </div>
                 </td>
               </tr>

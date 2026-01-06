@@ -31,7 +31,17 @@
       "Bash(npm audit:*)",
       "Bash(del:*)",
       "Bash(git rm:*)",
-      "Bash(rm:*)"
+      "Bash(rm:*)",
+      "Bash(git checkout:*)",
+      "Bash(perl:*)",
+      "Bash(docker-compose restart:*)",
+      "Bash(docker exec:*)",
+      "Bash(docker cp:*)",
+      "Bash(npm run build:*)",
+      "Bash(docker system:*)",
+      "Bash(docker builder prune:*)",
+      "Bash(docker image prune:*)",
+      "Bash(find:*)"
     ]
   }
 }

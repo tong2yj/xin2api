@@ -1,10 +1,9 @@
 # 🐱 CatieCli-maomao
 
-![Discord](https://img.shields.io/badge/Discord-Bot_支持-5865F2?logo=discord&logoColor=white)
-![OpenAI Compatible](https://img.shields.io/badge/OpenAI-兼容接口-412991?logo=openai&logoColor=white)
-![Gemini](https://img.shields.io/badge/Gemini-原生API-4285F4?logo=google&logoColor=white)
+![Docker](https://img.shields.io/badge/Docker-已支持-blue?logo=docker&logoColor=white)
+![Python](https://img.shields.io/badge/Python-3.10+-yellow?logo=python&logoColor=white)
 
-**Gemini API 代理服务** - 支持 OpenAI 兼容接口、Gemini 原生接口、凭证池管理、Discord Bot 集成
+**Gemini API 代理服务** - 支持 OpenAI 兼容接口、Gemini 原生接口、凭证池管理
 
 作者：**Catie猫猫**
 
@@ -16,7 +15,7 @@
 - 🔀 **反向代理** - 可作为 Gemini API 反代使用
 - 🔑 **凭证池管理** - 支持多凭证轮询、自动刷新 Token、失效自动禁用
 - 👥 **用户系统** - 注册登录、配额管理、使用统计
-- 🤖 **Discord Bot** - 通过 Discord 注册、获取 API Key、贡献凭证
+- 📊 **流量统计** - 详细的调用日志、错误分析、用户使用统计
 - 📊 **实时监控** - WebSocket 推送、使用日志、统计面板
 - 🔐 **OAuth 授权** - 支持 Google OAuth 获取 Gemini 凭证
 - 📢 **公告系统** - 支持发布公告，强制阅读倒计时
@@ -107,9 +106,6 @@ CatieCli/
 │   │   ├── pages/    # 页面组件
 │   │   └── api.js    # API 客户端
 │   └── package.json
-└── discord-bot/      # Discord Bot
-    ├── bot.py
-    └── requirements.txt
 ```
 
 </details>
@@ -274,54 +270,6 @@ git clone https://github.com/mzrodyu/CatieCli.git
 
 确保服务器防火墙开放了 **80** 和 **443** 端口
 
----
-
-#### 第六步：部署 Discord Bot（可选）
-
-如果你需要 Discord Bot 功能：
-
-1. 去 [Discord Developer Portal](https://discord.com/developers/applications) 创建 Bot，获取 Token
-2. 在 1Panel 再次进入 **"运行环境"** → **"Python"** → **"创建运行环境"**
-3. 填写：
-
-| 配置项   | 填什么                                             |
-| -------- | -------------------------------------------------- |
-| 名称     | `catiecli-bot`                                     |
-| 项目目录 | `/opt/CatieCli/discord-bot`                        |
-| 启动命令 | `pip install -r requirements.txt && python bot.py` |
-| 应用     | Python 3.10+                                       |
-| 容器名称 | `catiecli-bot`                                     |
-
-4. 添加环境变量：
-
-> ⚠️ **这些值必须根据你的实际情况填写！**
-
-| 变量名           | 说明                                    | 示例值（需修改！）                                 |
-| ---------------- | --------------------------------------- | -------------------------------------------------- |
-| `DISCORD_TOKEN`  | 你在 Discord 开发者后台获取的 Bot Token | `MTIzNDU2Nzg5...`（很长一串）                      |
-| `API_BASE_URL`   | 后端内部地址（容器内访问）              | `http://catiecli:5001`（这个一般不用改）           |
-| `API_PUBLIC_URL` | 用户实际访问的地址                      | `https://api.example.com` 或 `http://1.2.3.4:5001` |
-
-**示例配置：**
-
-假设你的域名是 `api.mysite.com`：
-
-```text
-DISCORD_TOKEN=MTIzNDU2Nzg5MDEyMzQ1Njc4OQ.XXXXXX.YYYYYYYYYYYYYYYYYYYYYYYY
-API_BASE_URL=http://catiecli:5001
-API_PUBLIC_URL=https://api.mysite.com
-```
-
-假设你用 IP 访问，IP 是 `123.45.67.89`：
-
-```text
-DISCORD_TOKEN=MTIzNDU2Nzg5MDEyMzQ1Njc4OQ.XXXXXX.YYYYYYYYYYYYYYYYYYYYYYYY
-API_BASE_URL=http://catiecli:5001
-API_PUBLIC_URL=http://123.45.67.89:5001
-```
-
-5. 点击确认，等待启动
-
 </details>
 
 <details>
@@ -340,23 +288,6 @@ pip install -r requirements.txt
 
 # 启动服务
 python run.py
-```
-
-#### Discord Bot
-
-```bash
-cd discord-bot
-
-# 安装依赖
-pip install -r requirements.txt
-
-# 设置环境变量
-export DISCORD_TOKEN=your_discord_bot_token
-export API_BASE_URL=http://localhost:5001
-export API_PUBLIC_URL=https://your-domain.com
-
-# 启动 Bot
-python bot.py
 ```
 
 </details>
@@ -383,8 +314,6 @@ docker-compose logs -f
 ```
 
 访问 `http://你的IP:5001` 即可
-
-**启用 Discord Bot**：编辑 `docker-compose.yml`，取消 bot 服务的注释，填入 Token 后重启。
 
 </details>
 
@@ -513,12 +442,6 @@ ALLOW_REGISTRATION=true
 # 如需自定义，取消注释并填入你的凭据
 # GOOGLE_CLIENT_ID=your-client-id
 # GOOGLE_CLIENT_SECRET=your-client-secret
-
-# Discord OAuth 登录（可选）
-# 配置后用户可通过 Discord 账号登录/注册
-# DISCORD_CLIENT_ID=你的客户端ID
-# DISCORD_CLIENT_SECRET=你的客户端密钥
-# DISCORD_REDIRECT_URI=https://你的域名/api/auth/discord/callback
 ```
 
 **完整示例（可直接复制修改）：**
@@ -532,60 +455,10 @@ DEFAULT_DAILY_QUOTA=100
 ALLOW_REGISTRATION=true
 ```
 
-### Discord OAuth 登录配置（可选）
-
-如果需要用户通过 **Discord 账号登录/注册**（不是 Bot），需要配置：
-
-#### 第一步：创建 Discord 应用
-
-1. 登录 [Discord Developer Portal](https://discord.com/developers/applications)
-2. 点击 **"New Application"** 创建应用
-3. 进入应用后，点击左侧 **"OAuth2"**
-4. 在 **"Redirects"** 部分添加回调地址：
-
-   ```
-   https://你的域名/api/auth/discord/callback
-   ```
-
-   如果没有域名，使用 IP+端口：
-
-   ```
-   http://你的IP:5001/api/auth/discord/callback
-   ```
-
-5. 复制 **Client ID** 和 **Client Secret**（点击 Reset Secret 生成）
-
-#### 第二步：配置环境变量
-
-在 `.env` 文件中添加：
-
-```env
-DISCORD_CLIENT_ID=你复制的Client_ID
-DISCORD_CLIENT_SECRET=你复制的Client_Secret
-DISCORD_REDIRECT_URI=https://你的域名/api/auth/discord/callback
-```
-
-#### 第三步：重启服务
-
-重启后，登录/注册页面会显示 **"使用 Discord 登录"** 按钮。
-
-#### 第四步：设置"仅允许 Discord 登录注册"（可选）
-
-如果希望只允许通过 Discord 注册（禁用普通注册），在管理后台 **"系统设置"** 中开启 **"仅允许 Discord 登录注册"** 开关。
-
-### Discord Bot 配置
-
-| 环境变量         | 说明                        |
-| ---------------- | --------------------------- |
-| `DISCORD_TOKEN`  | Discord Bot Token           |
-| `API_BASE_URL`   | 后端 API 地址（内部）       |
-| `API_PUBLIC_URL` | 后端 API 地址（显示给用户） |
-| `ADMIN_ROLE_ID`  | 管理员角色 ID（可选）       |
-
 </details>
 
 <details>
-<summary><strong>📡 API 使用 & Discord Bot 命令</strong>（点击展开）</summary>
+<summary><strong>📡 API 使用</strong>（点击展开）</summary>
 
 ## API 使用
 
@@ -620,17 +493,6 @@ curl https://your-domain.com/v1/chat/completions \
 - `gemini-2.0-flash`
 - `gemini-2.0-flash-lite`
 
-## 🤖 Discord Bot 命令
-
-| 命令        | 说明                    |
-| ----------- | ----------------------- |
-| `/register` | 注册账号                |
-| `/key`      | 获取 API Key            |
-| `/resetkey` | 重新生成 API Key        |
-| `/stats`    | 查看使用统计            |
-| `/donate`   | 贡献凭证获取 OAuth 链接 |
-| `/callback` | 提交 OAuth 回调 URL     |
-
 </details>
 
 <details>
@@ -644,14 +506,6 @@ curl https://your-domain.com/v1/chat/completions \
 cd backend
 docker build -t catiecli-backend .
 docker run -d -p 5001:5001 -v ./data:/app/data --env-file .env catiecli-backend
-```
-
-### Discord Bot
-
-```bash
-cd discord-bot
-docker build -t catiecli-bot .
-docker run -d --env-file .env catiecli-bot
 ```
 
 </details>

@@ -1,6 +1,7 @@
 import { Check, Key, Trash2, X } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import api from '../../api/index';
+import { Button } from '../../components/common/Button';
 import { Pagination } from '../../components/common/Pagination';
 import { ConfirmModal, InputModal, QuotaModal, AlertModal } from '../../components/modals/Modal';
 import { useToast } from '../../contexts/ToastContext';
@@ -50,8 +51,6 @@ export default function UsersTab() {
       result = result.filter(
         (u) =>
           u.username?.toLowerCase().includes(s) ||
-          u.discord_name?.toLowerCase().includes(s) ||
-          u.discord_id?.includes(s) ||
           String(u.id).includes(s)
       );
     }
@@ -152,23 +151,38 @@ export default function UsersTab() {
 
   return (
     <div className="space-y-4">
-      {/* 搜索和统计 */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <input
-            type="text"
-            placeholder="搜索用户名、Discord..."
-            value={search}
-            onChange={(e) => {
-              setSearch(e.target.value);
-              setPage(1);
-            }}
-            className="px-4 py-2 bg-dark-800 border border-dark-600 rounded-lg text-white placeholder-gray-500 w-64"
-          />
-          <span className="text-gray-400 text-sm">
-            共 {processedUsers.length} 个用户
-            {search && ` (筛选自 ${users.length} 个)`}
-          </span>
+      {/* 搜索和工具栏 */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-dark-800/20 p-4 rounded-xl border border-white/5">
+        <div className="flex items-center gap-4 flex-1">
+          <div className="relative flex-1 max-w-sm">
+            <input
+              type="text"
+              placeholder="搜索用户名..."
+              value={search}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setPage(1);
+              }}
+              className="w-full pl-4 pr-4 py-2 bg-dark-900 border border-dark-700 rounded-lg text-sm text-white placeholder-gray-500 focus:border-primary-500/50 outline-none transition-all"
+            />
+          </div>
+          <div className="flex items-center gap-2 text-xs text-dark-400">
+            <span className="px-2 py-1 bg-dark-800 rounded-md border border-white/5">
+              共 <span className="text-primary-400 font-bold">{processedUsers.length}</span> 个用户
+            </span>
+            {search && (
+              <Button variant="ghost" size="sm" onClick={() => setSearch('')} className="!py-1 !px-2 h-auto text-[10px]">
+                重置筛选
+              </Button>
+            )}
+          </div>
+        </div>
+        
+        <div className="flex items-center gap-2">
+          {/* 这里可以放置未来的全局操作，如导出用户列表 */}
+          <Button variant="secondary" size="sm" onClick={fetchUsers} icon={RefreshCw}>
+            刷新列表
+          </Button>
         </div>
       </div>
 
@@ -189,7 +203,6 @@ export default function UsersTab() {
               >
                 用户名 {sort.field === 'username' && (sort.order === 'asc' ? '↑' : '↓')}
               </th>
-              <th>Discord</th>
               <th
                 className="cursor-pointer hover:text-purple-400"
                 onClick={() => handleSort('daily_quota')}
@@ -224,16 +237,6 @@ export default function UsersTab() {
                     </span>
                   )}
                 </td>
-                <td className="text-gray-400 text-xs">
-                  {u.discord_id ? (
-                    <div>
-                      <div className="text-blue-400">{u.discord_name || 'Unknown'}</div>
-                      <div className="text-gray-500 font-mono">{u.discord_id}</div>
-                    </div>
-                  ) : (
-                    '-'
-                  )}
-                </td>
                 <td>
                   <button
                     onClick={() => updateUserQuota(u.id, u)}
@@ -255,29 +258,28 @@ export default function UsersTab() {
                 </td>
                 <td>
                   <div className="flex gap-1">
-                    <button
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
                       onClick={() => toggleUserActive(u.id, u.is_active)}
-                      className={`p-1.5 rounded hover:bg-dark-700 ${
-                        u.is_active ? 'text-red-400' : 'text-green-400'
-                      }`}
+                      className={u.is_active ? '!text-red-400 hover:!bg-red-500/10' : '!text-green-400 hover:!bg-green-500/10'}
                       title={u.is_active ? '禁用' : '启用'}
-                    >
-                      {u.is_active ? <X size={16} /> : <Check size={16} />}
-                    </button>
-                    <button
+                      icon={u.is_active ? X : Check}
+                    />
+                    <Button
+                      variant="ghost-primary"
+                      size="icon-sm"
                       onClick={() => resetUserPassword(u.id, u.username)}
-                      className="p-1.5 rounded hover:bg-dark-700 text-gray-400 hover:text-blue-400"
                       title="重置密码"
-                    >
-                      <Key size={16} />
-                    </button>
-                    <button
+                      icon={Key}
+                    />
+                    <Button
+                      variant="ghost-danger"
+                      size="icon-sm"
                       onClick={() => deleteUser(u.id)}
-                      className="p-1.5 rounded hover:bg-dark-700 text-gray-400 hover:text-red-400"
                       title="删除"
-                    >
-                      <Trash2 size={16} />
-                    </button>
+                      icon={Trash2}
+                    />
                   </div>
                 </td>
               </tr>

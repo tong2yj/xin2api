@@ -113,17 +113,17 @@ export default function Dashboard() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-[260px_1fr] gap-8 items-start">
-        {/* Sidebar */}
-        <div className="sticky top-24 space-y-2">
-          {/* User Profile Mini Card */}
-          <div className="bg-bg-card rounded-2xl p-4 border border-white/5 mb-6 flex items-center gap-3">
+      <div className="grid grid-cols-1 md:grid-cols-[260px_1fr] gap-6 md:gap-8 items-start">
+        {/* Sidebar / Mobile Nav */}
+        <div className="sticky top-16 md:top-24 z-30 bg-bg-main/95 backdrop-blur md:bg-transparent -mx-4 px-4 py-2 md:p-0 md:mx-0 border-b border-white/5 md:border-none space-y-2">
+          {/* User Profile Mini Card (Hidden on Mobile, or compacted) */}
+          <div className="hidden md:flex bg-bg-card rounded-2xl p-4 border border-white/5 mb-6 items-center gap-3">
             <div className="w-10 h-10 rounded-full bg-primary-500/20 flex items-center justify-center text-primary-400">
               <User size={20} />
             </div>
             <div className="flex-1 min-w-0">
               <div className="text-sm font-medium text-dark-50 truncate">
-                {user?.discord_name || user?.username}
+                {user?.username}
               </div>
               <div className="text-xs text-dark-400 truncate">
                 {user?.is_admin ? '管理员' : '普通用户'}
@@ -131,18 +131,30 @@ export default function Dashboard() {
             </div>
           </div>
 
-          <nav className="space-y-1">
+          <nav className="flex flex-row md:flex-col gap-2 overflow-x-auto pb-2 md:pb-0 hide-scrollbar">
             {sidebarItems.map((item) => {
               const isActive = activeTab === item.id;
+              // Common classes
+              const baseClasses = `
+                flex items-center gap-2 md:gap-3 px-3 py-2 md:px-4 md:py-3 rounded-full md:rounded-xl 
+                transition-all duration-200 whitespace-nowrap text-sm font-medium
+              `;
+              const activeClasses = `
+                bg-primary-600 text-white shadow-lg shadow-primary-500/20
+              `;
+              const inactiveClasses = `
+                text-dark-400 hover:text-dark-50 hover:bg-white/5 bg-dark-800/50 md:bg-transparent border border-white/5 md:border-transparent
+              `;
+
               if (item.link) {
                 return (
                   <a
                     key={item.id}
                     href={item.link}
-                    className="flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 text-dark-400 hover:text-dark-50 hover:bg-white/5"
+                    className={`${baseClasses} ${inactiveClasses}`}
                   >
                     <item.icon size={18} />
-                    <div className="text-sm font-medium">{item.label}</div>
+                    <span>{item.label}</span>
                   </a>
                 );
               }
@@ -150,20 +162,17 @@ export default function Dashboard() {
                 <button
                   key={item.id}
                   onClick={() => setActiveTab(item.id)}
-                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 text-left group ${
-                    isActive
-                      ? 'bg-primary-600 text-white shadow-lg shadow-primary-500/20'
-                      : 'text-dark-400 hover:text-dark-50 hover:bg-white/5'
-                  }`}
+                  className={`${baseClasses} ${isActive ? activeClasses : inactiveClasses} group text-left`}
                 >
                   <item.icon
                     size={18}
                     className={isActive ? 'text-white' : 'group-hover:text-primary-400 transition-colors'}
                   />
                   <div>
-                    <div className="text-sm font-medium">{item.label}</div>
+                    <span>{item.label}</span>
+                    {/* Desc hidden on mobile, shown on desktop only if active (or always? design choice) - keeping hidden for cleaner pill look on mobile */}
                     {isActive && (
-                      <div className="text-[10px] opacity-80 font-normal">
+                      <div className="hidden md:block text-[10px] opacity-80 font-normal mt-0.5">
                         {item.desc}
                       </div>
                     )}

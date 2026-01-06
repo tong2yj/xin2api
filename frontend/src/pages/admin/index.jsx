@@ -1,5 +1,7 @@
 import {
+  Activity,
   AlertTriangle,
+  Globe,
   Key,
   RefreshCw,
   ScrollText,
@@ -13,21 +15,27 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useWebSocket } from '../../hooks/useWebSocket';
 import CredentialsTab from './CredentialsTab';
 import ErrorsTab from './ErrorsTab';
+import GlobalStatsTab from './GlobalStatsTab';
 import LogsTab from './LogsTab';
+import OpenAIEndpointsTab from './OpenAIEndpointsTab';
 import SettingsTab from './SettingsTab';
+import SystemSettingsTab from './SystemSettingsTab';
 import UsersTab from './UsersTab';
 
 const TABS = [
+  { id: 'stats', label: '全局统计', icon: Activity },
   { id: 'users', label: '用户管理', icon: Users },
   { id: 'credentials', label: '凭证池', icon: Key },
   { id: 'logs', label: '使用日志', icon: ScrollText },
   { id: 'errors', label: '报错统计', icon: AlertTriangle },
-  { id: 'settings', label: '配额设置', icon: SettingsIcon },
+  { id: 'endpoints', label: 'OpenAI端点', icon: Globe },
+  { id: 'quota', label: '配额管理', icon: SettingsIcon },
+  { id: 'system', label: '系统设置', icon: SettingsIcon },
 ];
 
 export default function Admin() {
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState('users');
+  const [activeTab, setActiveTab] = useState('stats');
   const [refreshKey, setRefreshKey] = useState(0);
 
   // WebSocket 实时更新
@@ -46,6 +54,8 @@ export default function Admin() {
 
   const renderTab = () => {
     switch (activeTab) {
+      case 'stats':
+        return <GlobalStatsTab key={refreshKey} />;
       case 'users':
         return <UsersTab key={refreshKey} />;
       case 'credentials':
@@ -54,8 +64,12 @@ export default function Admin() {
         return <LogsTab key={refreshKey} />;
       case 'errors':
         return <ErrorsTab key={refreshKey} />;
-      case 'settings':
+      case 'endpoints':
+        return <OpenAIEndpointsTab key={refreshKey} />;
+      case 'quota':
         return <SettingsTab key={refreshKey} />;
+      case 'system':
+        return <SystemSettingsTab key={refreshKey} />;
       default:
         return null;
     }

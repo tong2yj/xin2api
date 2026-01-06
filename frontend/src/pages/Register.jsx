@@ -122,13 +122,14 @@ export default function Register() {
                   placeholder="至少6位密码"
                   required
                 />
-                <button
+                <Button
                   type="button"
+                  variant="ghost"
+                  size="icon-sm"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 text-dark-500 hover:text-dark-300 transition-colors p-1"
-                >
-                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                </button>
+                  className="absolute right-3 top-1/2 -translate-y-1/2 !text-dark-500 hover:!text-dark-300 rounded-lg"
+                  icon={showPassword ? EyeOff : Eye}
+                />
               </div>
             </div>
 

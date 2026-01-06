@@ -127,9 +127,13 @@ export default function OAuth() {
                 <Info size={24} />
                 操作指引
               </h3>
-              <button onClick={() => setShowGuide(false)} className="text-dark-500 hover:text-white transition-colors">
-                <X size={20} />
-              </button>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                onClick={() => setShowGuide(false)}
+                className="!text-dark-500 hover:!text-white"
+                icon={X}
+              />
             </div>
             
             <div className="space-y-4 text-dark-300 text-sm leading-relaxed">

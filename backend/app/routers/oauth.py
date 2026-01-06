@@ -84,12 +84,6 @@ async def get_auth_url(
     return await _get_auth_url_impl(get_all_projects, user.id if user else None, for_antigravity)
 
 
-@router.get("/auth-url-public")
-async def get_auth_url_public(get_all_projects: bool = False, for_antigravity: bool = False):
-    """获取 OAuth 认证链接（公开，用于 Discord Bot）"""
-    return await _get_auth_url_impl(get_all_projects, None, for_antigravity)
-
-
 async def _get_auth_url_impl(get_all_projects: bool, user_id: int = None, for_antigravity: bool = False):
     """获取 OAuth 认证链接实现"""
     # 根据凭证类型选择不同的 OAuth 配置

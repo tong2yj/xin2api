@@ -11,7 +11,7 @@
 ### 技术栈
 - **后端框架**: FastAPI (Python)
 - **数据库**: PostgreSQL + SQLAlchemy (异步 ORM)
-- **认证**: OAuth 2.0 (Google/Discord)
+- **认证**: OAuth 2.0 (Google)
 - **加密**: Fernet (对称加密)
 - **实时通信**: WebSocket
 - **HTTP 客户端**: httpx (异步)
