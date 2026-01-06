@@ -9,7 +9,7 @@ from app.database import get_db
 from app.models.user import User, APIKey, UsageLog, Credential
 from app.services.auth import (
     get_password_hash, authenticate_user, create_access_token,
-    get_current_user
+    get_current_user, get_current_admin
 )
 from app.config import settings
 from app.utils.logger import log_info, log_warning, log_error, log_success, log_db_operation
