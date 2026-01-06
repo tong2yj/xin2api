@@ -1,4 +1,4 @@
-import { Check, Key, Trash2, X } from 'lucide-react';
+import { Check, Key, Trash2, X, UserCheck, UserX, RefreshCw } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import api from '../../api/index';
 import { Button } from '../../components/common/Button';
@@ -87,6 +87,16 @@ export default function UsersTab() {
       fetchUsers();
     } catch (err) {
       toast.error('用户状态更新失败');
+    }
+  };
+
+  const toggleUserApproved = async (userId, isApproved) => {
+    try {
+      await api.put(`/api/admin/users/${userId}`, { is_approved: !isApproved });
+      toast.success(isApproved ? '已取消审核' : '审核通过');
+      fetchUsers();
+    } catch (err) {
+      toast.error('审核状态更新失败');
     }
   };
 
@@ -250,14 +260,29 @@ export default function UsersTab() {
                   {u.credential_count || 0}
                 </td>
                 <td>
-                  {u.is_active ? (
-                    <span className="text-green-400">活跃</span>
-                  ) : (
-                    <span className="text-red-400">禁用</span>
-                  )}
+                  <div className="flex flex-col gap-1">
+                    <span className={u.is_active ? 'text-green-400' : 'text-red-400'}>
+                      {u.is_active ? '活跃' : '禁用'}
+                    </span>
+                    {!u.is_admin && (
+                      <span className={u.is_approved ? 'text-blue-400 text-xs' : 'text-yellow-400 text-xs'}>
+                        {u.is_approved ? '已审核' : '待审核'}
+                      </span>
+                    )}
+                  </div>
                 </td>
                 <td>
                   <div className="flex gap-1">
+                    {!u.is_admin && (
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        onClick={() => toggleUserApproved(u.id, u.is_approved)}
+                        className={u.is_approved ? '!text-yellow-400 hover:!bg-yellow-500/10' : '!text-blue-400 hover:!bg-blue-500/10'}
+                        title={u.is_approved ? '取消审核' : '审核通过'}
+                        icon={u.is_approved ? UserX : UserCheck}
+                      />
+                    )}
                     <Button
                       variant="ghost"
                       size="icon-sm"

@@ -14,6 +14,7 @@ class User(Base):
     email = Column(String(100), unique=True, index=True, nullable=True)
     hashed_password = Column(String(255), nullable=False)
     is_active = Column(Boolean, default=True)
+    is_approved = Column(Boolean, default=False)  # 账号是否已审核通过
     is_admin = Column(Boolean, default=False)
     daily_quota = Column(Integer, default=100)  # 每日配额（统一按次数）
     created_at = Column(DateTime, default=datetime.utcnow)

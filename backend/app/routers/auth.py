@@ -89,6 +89,7 @@ async def register(data: UserRegister, db: AsyncSession = Depends(get_db)):
             "username": user.username,
             "email": user.email,
             "is_admin": user.is_admin,
+            "is_approved": user.is_approved,
             "daily_quota": user.daily_quota
         }
     )
@@ -113,6 +114,7 @@ async def login(data: UserLogin, db: AsyncSession = Depends(get_db)):
             "username": user.username,
             "email": user.email,
             "is_admin": user.is_admin,
+            "is_approved": user.is_approved,
             "daily_quota": user.daily_quota
         }
     )
@@ -176,6 +178,7 @@ async def get_me(user: User = Depends(get_current_user), db: AsyncSession = Depe
         "email": user.email,
         "is_admin": user.is_admin,
         "is_active": user.is_active,
+        "is_approved": user.is_approved,
         "daily_quota": user.daily_quota,
         "today_usage": today_usage,
         "credential_count": credential_count,

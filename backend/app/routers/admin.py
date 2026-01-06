@@ -19,6 +19,7 @@ router = APIRouter(prefix="/api/admin", tags=["管理后台"])
 # ===== 用户管理 =====
 class UserUpdate(BaseModel):
     is_active: Optional[bool] = None
+    is_approved: Optional[bool] = None
     is_admin: Optional[bool] = None
     daily_quota: Optional[int] = None
 
@@ -86,6 +87,7 @@ async def list_users(
             "username": u.username,
             "email": u.email,
             "is_active": u.is_active,
+            "is_approved": u.is_approved,
             "is_admin": u.is_admin,
             "daily_quota": u.daily_quota,
             "today_usage": today_usage,
@@ -109,9 +111,11 @@ async def update_user(
     user = result.scalar_one_or_none()
     if not user:
         raise HTTPException(status_code=404, detail="用户不存在")
-    
+
     if data.is_active is not None:
         user.is_active = data.is_active
+    if data.is_approved is not None:
+        user.is_approved = data.is_approved
     if data.is_admin is not None:
         user.is_admin = data.is_admin
     if data.daily_quota is not None:

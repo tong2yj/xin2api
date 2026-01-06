@@ -45,6 +45,7 @@ async def lifespan(app: FastAPI):
                 username=settings.admin_username,
                 hashed_password=get_password_hash(settings.admin_password),
                 is_admin=True,
+                is_approved=True,  # 管理员默认已审核
                 daily_quota=999999
             )
             db.add(admin_user)
@@ -53,6 +54,7 @@ async def lifespan(app: FastAPI):
             # 更新管理员密码（确保 .env 修改后生效）
             admin_user.hashed_password = get_password_hash(settings.admin_password)
             admin_user.is_admin = True
+            admin_user.is_approved = True  # 管理员默认已审核
             print(f"✅ 已同步管理员账号: {settings.admin_username}")
         
         await db.commit()

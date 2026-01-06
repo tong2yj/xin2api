@@ -44,9 +44,18 @@ async def get_user_by_api_key(db: AsyncSession, api_key: str) -> Optional[User]:
         # 更新最后使用时间
         key_obj.last_used_at = datetime.utcnow()
         await db.commit()
-        
+
         result = await db.execute(select(User).where(User.id == key_obj.user_id))
-        return result.scalar_one_or_none()
+        user = result.scalar_one_or_none()
+
+        # 检查用户是否已审核通过
+        if user and not user.is_approved:
+            raise HTTPException(
+                status_code=403,
+                detail="账号未激活，请等待管理员审核"
+            )
+
+        return user
     return None
 
 
@@ -65,7 +74,7 @@ async def get_current_user(
     if not credentials:
         print("JWT认证失败: 未提供认证信息", flush=True)
         raise HTTPException(status_code=401, detail="Unauthorized")
-    
+
     token = credentials.credentials
     try:
         payload = jwt.decode(token, settings.secret_key, algorithms=[settings.algorithm])
@@ -74,12 +83,13 @@ async def get_current_user(
             raise HTTPException(status_code=401, detail="无效的认证令牌")
     except JWTError:
         raise HTTPException(status_code=401, detail="无效的认证令牌")
-    
+
     user = await get_user_by_username(db, username)
     if user is None:
         raise HTTPException(status_code=401, detail="用户不存在")
     if not user.is_active:
         raise HTTPException(status_code=403, detail="用户已被禁用")
+    # 注意：这里不检查 is_approved，因为用户需要能登录查看自己的状态
     return user
 
 

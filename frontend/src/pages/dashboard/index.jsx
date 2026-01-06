@@ -1,4 +1,4 @@
-import { BarChart2, Key, Shield, User } from 'lucide-react';
+import { BarChart2, Key, Shield, User, AlertCircle } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import api from '../../api/index';
@@ -109,6 +109,21 @@ export default function Dashboard() {
             >
               ✕
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Account Not Approved Warning */}
+      {userInfo && !userInfo.is_approved && !user?.is_admin && (
+        <div className="mb-8 animate-fade-in">
+          <div className="p-4 rounded-xl border bg-yellow-500/10 border-yellow-500/20 text-yellow-400 flex items-start gap-3">
+            <AlertCircle size={20} className="flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <div className="font-medium mb-1">账号未激活</div>
+              <div className="text-sm text-yellow-400/80">
+                您的账号正在等待管理员审核，审核通过后即可使用 API 服务。请耐心等待。
+              </div>
+            </div>
           </div>
         </div>
       )}
