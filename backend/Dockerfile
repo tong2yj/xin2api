@@ -9,6 +9,10 @@ RUN pip install --no-cache-dir -r requirements.txt
 # 复制代码
 COPY . .
 
+# 清理所有Python字节码缓存文件
+RUN find . -type f -name '*.pyc' -delete && \
+    find . -type d -name '__pycache__' -delete
+
 # 创建数据目录
 RUN mkdir -p /app/data
 
