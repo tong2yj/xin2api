@@ -21,6 +21,11 @@ import httpx
 
 router = APIRouter(tags=["API代理"])
 
+# 模型列表缓存（5分钟过期）
+_models_cache = {}
+_models_cache_time = {}
+MODELS_CACHE_TTL = 300  # 5分钟
+
 
 def extract_status_code(error_str: str, default: int = 500) -> int:
     """从错误信息中提取HTTP状态码"""
@@ -322,7 +327,7 @@ async def options_handler():
 
 @router.get("/v1/models")
 async def list_models(request: Request, user: User = Depends(get_user_from_api_key), db: AsyncSession = Depends(get_db)):
-    """列出可用模型 (OpenAI兼容) - 统一端点，包含 Gemini 和 Antigravity 模型"""
+    """列出可用模型 (OpenAI兼容) - 统一端点，包含 Gemini、Antigravity 和 OpenAI 兼容端点的模型"""
     from app.models.user import Credential
 
     # 检查是否有可用的 3.0 凭证
@@ -407,6 +412,58 @@ async def list_models(request: Request, user: User = Depends(get_user_from_api_k
 
         for model_id in ag_gemini_models + ag_claude_models:
             models.append({"id": model_id, "object": "model", "owned_by": "antigravity"})
+
+    # ========== OpenAI 兼容端点的模型 ==========
+    # 获取所有启用的 OpenAI 端点
+    openai_endpoints_result = await db.execute(
+        select(OpenAIEndpoint)
+        .where(OpenAIEndpoint.is_active == True)
+        .order_by(OpenAIEndpoint.priority.desc())
+    )
+    openai_endpoints = openai_endpoints_result.scalars().all()
+
+    # 从每个端点获取模型列表（带缓存）
+    current_time = time.time()
+    for endpoint in openai_endpoints:
+        cache_key = f"endpoint_{endpoint.id}"
+
+        # 检查缓存
+        if cache_key in _models_cache and cache_key in _models_cache_time:
+            if current_time - _models_cache_time[cache_key] < MODELS_CACHE_TTL:
+                # 使用缓存
+                models.extend(_models_cache[cache_key])
+                continue
+
+        # 缓存过期或不存在，重新获取
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                response = await client.get(
+                    f"{endpoint.base_url}/v1/models",
+                    headers={"Authorization": f"Bearer {endpoint.api_key}"}
+                )
+                if response.status_code == 200:
+                    upstream_data = response.json()
+                    endpoint_models = []
+                    # 添加上游模型到列表
+                    if "data" in upstream_data:
+                        for model in upstream_data["data"]:
+                            model_id = model.get("id", "")
+                            if model_id:
+                                model_entry = {
+                                    "id": model_id,
+                                    "object": "model",
+                                    "owned_by": model.get("owned_by", endpoint.name)
+                                }
+                                endpoint_models.append(model_entry)
+
+                    # 更新缓存
+                    _models_cache[cache_key] = endpoint_models
+                    _models_cache_time[cache_key] = current_time
+                    models.extend(endpoint_models)
+        except Exception as e:
+            # 静默失败，不影响其他模型的返回
+            log_warning("Models", f"从 {endpoint.name} 获取模型失败: {str(e)}")
+            continue
 
     return {"object": "list", "data": models}
 
