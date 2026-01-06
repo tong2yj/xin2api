@@ -90,19 +90,6 @@ export default function CredentialsTab({ forceDonate = false }) {
         forceDonate={forceDonate}
       />
 
-      {/* 大锅饭规则提示 */}
-      {!forceDonate && (
-        <div className="mt-6 bg-amber-500/5 border border-amber-500/20 rounded-xl p-4 flex items-start gap-3">
-          <ShieldCheck className="text-amber-500 mt-0.5" size={20} />
-          <div>
-            <div className="text-amber-400 font-medium mb-1">大锅饭共享机制</div>
-            <div className="text-amber-500/70 text-sm">
-              捐赠（公开）您的凭证后，您将获得访问公共池所有高额度凭证的权限。这是一种互惠互利的机制。
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* 配额弹窗 */}
       <QuotaInfoModal data={quotaData} onClose={closeQuotaModal} />
 

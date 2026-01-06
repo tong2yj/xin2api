@@ -38,20 +38,13 @@ export function CredentialList({
           <Shield size={32} className="text-dark-500" />
         </div>
         <p className="text-dark-300 font-medium text-lg mb-2">{emptyMessage}</p>
-        
+
         {emptyAction ? (
           emptyAction
         ) : (
-          <div className="text-center">
-            <p className="text-dark-500 text-sm mb-4">
-              您可以上传现有的 JSON 文件，或者通过 OAuth 获取新凭证
-            </p>
-            <Link to="/oauth">
-              <Button variant="primary" size="sm" icon={ExternalLink}>
-                去获取凭证
-              </Button>
-            </Link>
-          </div>
+          <p className="text-dark-500 text-sm">
+            点击右上角"获取新凭证"按钮来添加凭证
+          </p>
         )}
       </div>
     );
