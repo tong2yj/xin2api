@@ -8,7 +8,7 @@ export function Card({ children, className = '', padding = true }) {
         bg-bg-card rounded-2xl
         ${padding ? 'p-6 sm:p-8' : ''}
         transition-all duration-300 ease-out
-        hover:-translate-y-1 hover:shadow-2xl hover:shadow-black/20
+        sm:hover:-translate-y-1 sm:hover:shadow-2xl sm:hover:shadow-black/20
         border border-white/5
         ${className}
       `}

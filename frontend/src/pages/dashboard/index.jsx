@@ -130,7 +130,7 @@ export default function Dashboard() {
 
       <div className="grid grid-cols-1 md:grid-cols-[260px_1fr] gap-6 md:gap-8 items-start">
         {/* Sidebar / Mobile Nav */}
-        <div className={`sticky ${user?.is_admin ? 'top-[7.5rem]' : 'top-16'} md:top-24 z-30 bg-bg-main/95 backdrop-blur md:bg-transparent -mx-4 px-4 py-2 md:p-0 md:mx-0 border-b border-white/5 md:border-none space-y-2`}>
+        <div className={`sticky ${user?.is_admin ? 'top-[7.5rem]' : 'top-16'} md:top-24 z-40 bg-bg-main/95 backdrop-blur md:bg-transparent -mx-4 px-4 py-2 md:p-0 md:mx-0 border-b border-white/5 md:border-none space-y-2`}>
           {/* User Profile Mini Card (Hidden on Mobile, or compacted) */}
           <div className="hidden md:flex bg-bg-card rounded-2xl p-4 border border-white/5 mb-6 items-center gap-3">
             <div className="w-10 h-10 rounded-full bg-primary-500/20 flex items-center justify-center text-primary-400">
