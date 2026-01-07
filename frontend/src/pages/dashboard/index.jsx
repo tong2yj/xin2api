@@ -15,7 +15,7 @@ export default function Dashboard() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [userInfo, setUserInfo] = useState(null);
   const [oauthMessage, setOauthMessage] = useState(null);
-  const [activeTab, setActiveTab] = useState('credentials');
+  const [activeTab, setActiveTab] = useState('apikey');
   const [forceDonate, setForceDonate] = useState(false);
   const [rpmConfig, setRpmConfig] = useState({ base: 5, contributor: 10 });
 
@@ -66,16 +66,16 @@ export default function Dashboard() {
 
   const sidebarItems = [
     {
-      id: 'credentials',
-      label: '凭证管理',
-      icon: Shield,
-      desc: '管理您的账号凭证',
-    },
-    {
       id: 'apikey',
       label: 'API 密钥',
       icon: Key,
       desc: '连接 API 的访问密钥',
+    },
+    {
+      id: 'credentials',
+      label: '凭证管理',
+      icon: Shield,
+      desc: '管理您的账号凭证',
     },
     {
       id: 'stats',
