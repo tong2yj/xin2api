@@ -160,26 +160,32 @@ async def handle_openai_endpoint(request: Request, user: User, db: AsyncSession,
                 async def stream_generator():
                     client = httpx.AsyncClient(timeout=60.0)
                     log_recorded = False  # 标记是否已记录日志，避免重复记录
-                    stream_completed = False  # 标记流式传输是否完成
+                    stream_success = False  # 标记流式传输是否成功完成
                     try:
                         async with client.stream("POST", url, json=body, headers=headers) as response:
                             response.raise_for_status()
 
-                            # 更新端点统计
-                            endpoint.total_requests = (endpoint.total_requests or 0) + 1
-                            endpoint.last_used_at = datetime.utcnow()
+                            # 更新端点统计（使用独立会话）
                             try:
-                                await db.commit()
+                                async with async_session() as stats_db:
+                                    from sqlalchemy import update
+                                    await stats_db.execute(
+                                        update(OpenAIEndpoint)
+                                        .where(OpenAIEndpoint.id == endpoint.id)
+                                        .values(
+                                            total_requests=OpenAIEndpoint.total_requests + 1,
+                                            last_used_at=datetime.utcnow()
+                                        )
+                                    )
+                                    await stats_db.commit()
                             except:
-                                pass  # 忽略数据库会话已关闭的错误
+                                pass
 
                             # 流式传输数据
                             async for chunk in response.aiter_bytes():
                                 yield chunk
 
-                            stream_completed = True  # 标记流式传输完成
-
-                            # 只有在成功完成流式传输后才记录成功日志
+                            # 流式传输成功完成，记录成功日志
                             try:
                                 async with async_session() as log_db:
                                     log = UsageLog(
@@ -194,22 +200,25 @@ async def handle_openai_endpoint(request: Request, user: User, db: AsyncSession,
                                     log_db.add(log)
                                     await log_db.commit()
                                 log_recorded = True
+                                stream_success = True
                             except Exception as log_err:
                                 log_error("OpenAI Stream", f"日志记录失败: {log_err}")
+                                stream_success = True  # 流式传输本身成功了
                     except Exception as e:
-                        # 只有在流式传输未完成时才记录错误日志
-                        if not stream_completed and not log_recorded:
-                            error_msg = str(e)
-                            # 记录错误
+                        error_msg = str(e)
+                        # 只有在未记录成功日志时才记录错误日志
+                        if not log_recorded and not stream_success:
                             try:
-                                endpoint.failed_requests = (endpoint.failed_requests or 0) + 1
-                                endpoint.last_error = error_msg[:500]
-                                await db.commit()
-                            except:
-                                pass  # 忽略数据库会话已关闭的错误
-
-                            try:
-                                async with async_session() as log_db:
+                                async with async_session() as err_db:
+                                    from sqlalchemy import update
+                                    await err_db.execute(
+                                        update(OpenAIEndpoint)
+                                        .where(OpenAIEndpoint.id == endpoint.id)
+                                        .values(
+                                            failed_requests=OpenAIEndpoint.failed_requests + 1,
+                                            last_error=error_msg[:500]
+                                        )
+                                    )
                                     log = UsageLog(
                                         user_id=user.id,
                                         model=model,
@@ -220,15 +229,17 @@ async def handle_openai_endpoint(request: Request, user: User, db: AsyncSession,
                                         client_ip=client_ip,
                                         user_agent=user_agent
                                     )
-                                    log_db.add(log)
-                                    await log_db.commit()
+                                    err_db.add(log)
+                                    await err_db.commit()
                             except Exception as log_err:
                                 log_error("OpenAI Stream", f"错误日志记录失败: {log_err}")
+                        # 向客户端发送错误信息
+                        yield f"data: {json.dumps({'error': error_msg})}\n\n".encode()
                     finally:
                         try:
                             await client.aclose()
                         except:
-                            pass  # 忽略关闭客户端时的错误
+                            pass
 
                 return StreamingResponse(
                     stream_generator(),
