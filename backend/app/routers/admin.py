@@ -822,8 +822,6 @@ async def get_logs(
                 "credential_email": log.UsageLog.credential_email,
                 "credential_name": log.UsageLog.credential_email,  # 兼容前端
                 "latency_ms": log.UsageLog.latency_ms,
-                "tokens_input": log.UsageLog.tokens_input,
-                "tokens_output": log.UsageLog.tokens_output,
                 "cd_seconds": log.UsageLog.cd_seconds,
                 "created_at": log.UsageLog.created_at.isoformat() + "Z"
             }

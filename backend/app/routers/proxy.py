@@ -268,11 +268,7 @@ async def handle_openai_endpoint(request: Request, user: User, db: AsyncSession,
                     endpoint.last_used_at = datetime.utcnow()
                     await db.commit()
 
-                    # 提取响应数据和 token 信息
                     response_data = response.json()
-                    usage = response_data.get("usage", {})
-                    tokens_input = usage.get("prompt_tokens", 0)
-                    tokens_output = usage.get("completion_tokens", 0)
 
                     # 记录日志
                     log = UsageLog(
@@ -281,8 +277,6 @@ async def handle_openai_endpoint(request: Request, user: User, db: AsyncSession,
                         endpoint="/v1/chat/completions",
                         status_code=200,
                         latency_ms=round((time.time() - start_time), 1),
-                        tokens_input=tokens_input,
-                        tokens_output=tokens_output,
                         client_ip=client_ip,
                         user_agent=user_agent
                     )
@@ -615,7 +609,7 @@ async def chat_completions(
         client = GeminiClient(access_token, project_id)
         
         # 记录使用日志
-        async def log_usage(status_code: int = 200, cred=credential, error_msg: str = None, tokens_input: int = 0, tokens_output: int = 0):
+        async def log_usage(status_code: int = 200, cred=credential, error_msg: str = None):
             latency = round((time.time() - start_time), 1)
 
             # 错误分类
@@ -631,8 +625,6 @@ async def chat_completions(
                 endpoint="/v1/chat/completions",
                 status_code=status_code,
                 latency_ms=latency,
-                tokens_input=tokens_input,
-                tokens_output=tokens_output,
                 error_message=error_msg[:2000] if error_msg else None,
                 error_type=error_type,
                 error_code=error_code,
@@ -665,14 +657,12 @@ async def chat_completions(
                 # 流式模式：使用带重试的流生成器
                 # 注意：由于流式响应返回后 FastAPI 会关闭依赖注入的 db 会话，
                 # 所以需要在生成器内部创建独立的数据库会话来记录日志
-                
+
                 async def log_usage_in_stream(
                     status_code: int = 200,
                     cred_id: int = None,
                     cred_email: str = None,
-                    error_msg: str = None,
-                    tokens_input: int = 0,
-                    tokens_output: int = 0
+                    error_msg: str = None
                 ):
                     """在流式生成器内部使用独立会话记录日志"""
                     try:
@@ -693,8 +683,6 @@ async def chat_completions(
                                 endpoint="/v1/chat/completions",
                                 status_code=status_code,
                                 latency_ms=latency,
-                                tokens_input=tokens_input,
-                                tokens_output=tokens_output,
                                 error_message=error_msg[:2000] if error_msg else None,
                                 error_type=error_type,
                                 error_code=error_code,
@@ -795,11 +783,7 @@ async def chat_completions(
                     messages=messages,
                     **{k: v for k, v in body.items() if k not in ["model", "messages", "stream"]}
                 )
-                # 提取 token 信息
-                usage = result.get("usage", {})
-                tokens_input = usage.get("prompt_tokens", 0)
-                tokens_output = usage.get("completion_tokens", 0)
-                await log_usage(tokens_input=tokens_input, tokens_output=tokens_output)
+                await log_usage()
                 return JSONResponse(content=result)
         
         except Exception as e:

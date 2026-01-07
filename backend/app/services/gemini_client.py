@@ -375,12 +375,7 @@ class GeminiClient:
                 "index": 0,
                 "message": message,
                 "finish_reason": "stop"
-            }],
-            "usage": {
-                "prompt_tokens": 0,
-                "completion_tokens": 0,
-                "total_tokens": 0
-            }
+            }]
         }
     
     def _convert_to_openai_stream(self, chunk_data: str, model: str) -> str:

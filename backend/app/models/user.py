@@ -56,8 +56,6 @@ class UsageLog(Base):
     credential_id = Column(Integer, ForeignKey("credentials.id", ondelete="SET NULL"), nullable=True)  # 使用的凭证
     model = Column(String(100), nullable=True)
     endpoint = Column(String(200), nullable=True)
-    tokens_input = Column(Integer, default=0)
-    tokens_output = Column(Integer, default=0)
     status_code = Column(Integer, nullable=True)
     latency_ms = Column(Float, nullable=True)
     cd_seconds = Column(Integer, nullable=True)  # 429 时设置的 CD 秒数

@@ -157,8 +157,6 @@ async def convert_antigravity_stream_to_openai(
     created = int(time.time())
     content_buffer = ""
     stream_success = False
-    tokens_input = 0
-    tokens_output = 0
 
     try:
         async for line in lines_generator:
@@ -197,16 +195,6 @@ async def convert_antigravity_stream_to_openai(
                 # 检查是否结束
                 finish_reason = data.get("response", {}).get("candidates", [{}])[0].get("finishReason")
                 if finish_reason:
-                    # 提取使用统计
-                    usage_metadata = data.get("response", {}).get("usageMetadata", {})
-                    tokens_input = usage_metadata.get("promptTokenCount", 0)
-                    tokens_output = usage_metadata.get("candidatesTokenCount", 0)
-                    usage = {
-                        "prompt_tokens": tokens_input,
-                        "completion_tokens": tokens_output,
-                        "total_tokens": usage_metadata.get("totalTokenCount", 0)
-                    }
-
                     chunk = {
                         "id": request_id,
                         "object": "chat.completion.chunk",
@@ -216,8 +204,7 @@ async def convert_antigravity_stream_to_openai(
                             "index": 0,
                             "delta": {},
                             "finish_reason": "stop"
-                        }],
-                        "usage": usage
+                        }]
                     }
                     yield f"data: {json.dumps(chunk)}\n\n"
                     yield "data: [DONE]\n\n"
@@ -239,8 +226,6 @@ async def convert_antigravity_stream_to_openai(
                         endpoint="/v1/chat/completions",
                         status_code=200,
                         latency_ms=latency_ms,
-                        tokens_input=tokens_input,
-                        tokens_output=tokens_output,
                         credential_email=credential_email,
                         created_at=datetime.utcnow()
                     )
@@ -431,9 +416,7 @@ async def log_usage(
     endpoint: str,
     status_code: int,
     error_message: str = None,
-    latency_ms: float = None,
-    tokens_input: int = 0,
-    tokens_output: int = 0
+    latency_ms: float = None
 ):
     """记录使用日志 (复用 CatieCli 的日志系统)"""
     log = UsageLog(
@@ -444,8 +427,6 @@ async def log_usage(
         status_code=status_code,
         error_message=error_message,
         latency_ms=latency_ms,
-        tokens_input=tokens_input,
-        tokens_output=tokens_output,
         credential_email=credential.email,
         created_at=datetime.utcnow()
     )
@@ -608,9 +589,7 @@ async def handle_chat_completions_antigravity(request: Request, user: User, db: 
             latency_ms = round((time.time() - start_time), 1)
             await log_usage(
                 db, user, credential, f"ag-{model}", "/v1/chat/completions", 200,
-                latency_ms=latency_ms,
-                tokens_input=usage["prompt_tokens"],
-                tokens_output=usage["completion_tokens"]
+                latency_ms=latency_ms
             )
 
             return JSONResponse(content=openai_response)
@@ -749,9 +728,7 @@ async def antigravity_chat_completions(request: Request, db: AsyncSession = Depe
             latency_ms = round((time.time() - start_time), 1)
             await log_usage(
                 db, user, credential, model, "/antigravity/v1/chat/completions", 200,
-                latency_ms=latency_ms,
-                tokens_input=usage["prompt_tokens"],
-                tokens_output=usage["completion_tokens"]
+                latency_ms=latency_ms
             )
 
             return JSONResponse(content=openai_response)

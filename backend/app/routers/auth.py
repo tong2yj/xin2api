@@ -1063,8 +1063,6 @@ async def get_my_stats(user: User = Depends(get_current_user), db: AsyncSession 
             "endpoint": log.endpoint,
             "status_code": log.status_code,
             "latency_ms": log.latency_ms,
-            "tokens_input": log.tokens_input,
-            "tokens_output": log.tokens_output,
             "api_source": get_api_source(log),
             "credential_email": log.credential_email,
             "created_at": log.created_at.isoformat() + "Z" if log.created_at else None

@@ -165,7 +165,6 @@ export default function LogsTab() {
                 <th>来源</th>
                 <th>状态</th>
                 <th>耗时</th>
-                <th>Token</th>
                 <th>操作</th>
               </tr>
             </thead>
@@ -187,9 +186,6 @@ export default function LogsTab() {
                   </td>
                   <td className="text-gray-400 text-xs">
                     {log.latency_ms ? `${log.latency_ms.toFixed(1)}s` : '-'}
-                  </td>
-                  <td className="text-gray-400 text-xs font-mono">
-                    {log.tokens_input || 0} / {log.tokens_output || 0}
                   </td>
                   <td>
                     <button

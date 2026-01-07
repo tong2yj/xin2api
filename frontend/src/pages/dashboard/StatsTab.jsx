@@ -82,15 +82,6 @@ export default function StatsTab() {
       label: '耗时',
       render: (val) => <span className="text-dark-400 text-xs">{val ? `${val.toFixed(1)}s` : '-'}</span>,
     },
-    {
-      key: 'tokens',
-      label: 'Token',
-      render: (_, row) => (
-        <span className="text-dark-400 text-xs font-mono">
-          {row.tokens_input || 0} / {row.tokens_output || 0}
-        </span>
-      ),
-    },
   ];
 
   return (

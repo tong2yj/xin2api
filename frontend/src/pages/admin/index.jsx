@@ -1,14 +1,16 @@
 import { useSearchParams } from 'react-router-dom';
 import { AdminLayout } from './AdminLayout';
-import Overview from './views/Overview';
-import Users from './views/Users';
-import Credentials from './views/Credentials';
-import Logs from './views/Logs';
-import Settings from './views/Settings';
+import UsersTab from './UsersTab';
+import CredentialsTab from './CredentialsTab';
+import LogsTab from './LogsTab';
+import ErrorsTab from './ErrorsTab';
+import SystemSettingsTab from './SystemSettingsTab';
+import GlobalStatsTab from './GlobalStatsTab';
+import OpenAIEndpointsTab from './OpenAIEndpointsTab';
 
 export default function Admin() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const activeTab = searchParams.get('tab') || 'overview';
+  const activeTab = searchParams.get('tab') || 'stats';
 
   const handleTabChange = (tab) => {
     setSearchParams({ tab });
@@ -17,16 +19,20 @@ export default function Admin() {
   const renderContent = () => {
     switch (activeTab) {
       case 'users':
-        return <Users />;
+        return <UsersTab />;
       case 'credentials':
-        return <Credentials />;
+        return <CredentialsTab />;
       case 'logs':
-        return <Logs />;
+        return <LogsTab />;
+      case 'errors':
+        return <ErrorsTab />;
       case 'settings':
-        return <Settings />;
-      case 'overview':
+        return <SystemSettingsTab />;
+      case 'endpoints':
+        return <OpenAIEndpointsTab />;
+      case 'stats':
       default:
-        return <Overview />;
+        return <GlobalStatsTab />;
     }
   };
 
