@@ -369,11 +369,6 @@ async def list_models(request: Request, user: User = Depends(get_user_from_api_k
     """列出可用模型 (OpenAI兼容) - 统一端点，包含 Gemini、Antigravity 和 OpenAI 兼容端点的模型"""
     from app.models.user import Credential
 
-    # 检查是否有可用的 3.0 凭证
-    has_tier3_creds = await CredentialPool.has_tier3_credentials(user, db)
-
-    has_tier3 = await CredentialPool.has_tier3_credentials(user, db)
-
     # 检查是否有 Antigravity 凭证
     result = await db.execute(
         select(Credential)
@@ -390,16 +385,13 @@ async def list_models(request: Request, user: User = Depends(get_user_from_api_k
     has_antigravity = result.scalar_one_or_none() is not None
 
     # ========== Gemini CLI 模型 ==========
-    # 基础模型 (Gemini 2.5+)
+    # 基础模型 (包含 2.5 和 3.0)
     base_models = [
         "gemini-2.5-pro",
         "gemini-2.5-flash",
+        "gemini-3-pro-preview",
+        "gemini-3-flash-preview",
     ]
-
-    # 只有有 3.0 凭证时才添加 3.0 模型
-    if has_tier3:
-        base_models.append("gemini-3-pro-preview")
-        base_models.append("gemini-3-flash-preview")
 
     # Thinking 后缀
     thinking_suffixes = ["-maxthinking", "-nothinking"]
@@ -867,14 +859,8 @@ async def gemini_options_handler(model: str):
 @router.get("/v1beta/models")
 async def list_gemini_models(request: Request, user: User = Depends(get_user_from_api_key), db: AsyncSession = Depends(get_db)):
     """Gemini 格式模型列表"""
-    # 检查是否有可用的 3.0 凭证
-    has_tier3 = await CredentialPool.has_tier3_credentials(user, db)
-    
-    base_models = ["gemini-2.5-pro", "gemini-2.5-flash"]
-    if has_tier3:
-        base_models.append("gemini-3-pro-preview")
-        base_models.append("gemini-3-flash-preview")
-    
+    base_models = ["gemini-2.5-pro", "gemini-2.5-flash", "gemini-3-pro-preview", "gemini-3-flash-preview"]
+
     models = []
     for base in base_models:
         models.append({
@@ -886,7 +872,7 @@ async def list_gemini_models(request: Request, user: User = Depends(get_user_fro
             "outputTokenLimit": 65536,
             "supportedGenerationMethods": ["generateContent", "streamGenerateContent"],
         })
-    
+
     return {"models": models}
 
 
