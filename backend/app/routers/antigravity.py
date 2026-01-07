@@ -11,7 +11,7 @@ import time
 import uuid
 from datetime import datetime, timedelta
 
-from app.database import get_db
+from app.database import get_db, async_session
 from app.models.user import User, Credential, UsageLog
 from app.services.auth import get_user_by_api_key
 from app.services.antigravity_client import (
@@ -144,10 +144,21 @@ def gemini_to_antigravity_contents(gemini_contents: list) -> list:
     return gemini_contents
 
 
-async def convert_antigravity_stream_to_openai(lines_generator, model: str, request_id: str):
-    """将 Antigravity 流式响应转换为 OpenAI SSE 格式"""
+async def convert_antigravity_stream_to_openai(
+    lines_generator,
+    model: str,
+    request_id: str,
+    user_id: int = None,
+    credential_id: int = None,
+    credential_email: str = None,
+    start_time: float = None
+):
+    """将 Antigravity 流式响应转换为 OpenAI SSE 格式，并在完成时记录日志"""
     created = int(time.time())
     content_buffer = ""
+    stream_success = False
+    tokens_input = 0
+    tokens_output = 0
 
     try:
         async for line in lines_generator:
@@ -157,6 +168,7 @@ async def convert_antigravity_stream_to_openai(lines_generator, model: str, requ
             raw = line[6:].strip()
             if raw == "[DONE]":
                 yield "data: [DONE]\n\n"
+                stream_success = True
                 break
 
             try:
@@ -187,9 +199,11 @@ async def convert_antigravity_stream_to_openai(lines_generator, model: str, requ
                 if finish_reason:
                     # 提取使用统计
                     usage_metadata = data.get("response", {}).get("usageMetadata", {})
+                    tokens_input = usage_metadata.get("promptTokenCount", 0)
+                    tokens_output = usage_metadata.get("candidatesTokenCount", 0)
                     usage = {
-                        "prompt_tokens": usage_metadata.get("promptTokenCount", 0),
-                        "completion_tokens": usage_metadata.get("candidatesTokenCount", 0),
+                        "prompt_tokens": tokens_input,
+                        "completion_tokens": tokens_output,
                         "total_tokens": usage_metadata.get("totalTokenCount", 0)
                     }
 
@@ -207,24 +221,104 @@ async def convert_antigravity_stream_to_openai(lines_generator, model: str, requ
                     }
                     yield f"data: {json.dumps(chunk)}\n\n"
                     yield "data: [DONE]\n\n"
+                    stream_success = True
                     break
             except Exception as e:
                 log_error("Antigravity", f"解析错误: {e}")
                 continue
+
+        # 流式传输成功完成，记录成功日志
+        if stream_success and user_id and credential_id:
+            try:
+                async with async_session() as log_db:
+                    latency_ms = round((time.time() - start_time), 1) if start_time else None
+                    log = UsageLog(
+                        user_id=user_id,
+                        credential_id=credential_id,
+                        model=model,
+                        endpoint="/v1/chat/completions",
+                        status_code=200,
+                        latency_ms=latency_ms,
+                        tokens_input=tokens_input,
+                        tokens_output=tokens_output,
+                        credential_email=credential_email,
+                        created_at=datetime.utcnow()
+                    )
+                    log_db.add(log)
+                    # 更新凭证使用时间
+                    from sqlalchemy import update
+                    await log_db.execute(
+                        update(Credential)
+                        .where(Credential.id == credential_id)
+                        .values(
+                            last_used_at=datetime.utcnow(),
+                            total_requests=Credential.total_requests + 1
+                        )
+                    )
+                    await log_db.commit()
+            except Exception as log_err:
+                log_error("Antigravity", f"日志记录失败: {log_err}")
+
     except Exception as e:
+        error_msg = str(e)
         log_error("Antigravity", f"流式转换错误: {e}")
+
+        # 记录错误日志
+        if user_id and credential_id:
+            try:
+                actual_status_code = extract_status_code(error_msg, 500)
+                async with async_session() as err_db:
+                    latency_ms = round((time.time() - start_time), 1) if start_time else None
+                    log = UsageLog(
+                        user_id=user_id,
+                        credential_id=credential_id,
+                        model=model,
+                        endpoint="/v1/chat/completions",
+                        status_code=actual_status_code,
+                        error_message=error_msg[:2000],
+                        latency_ms=latency_ms,
+                        credential_email=credential_email,
+                        created_at=datetime.utcnow()
+                    )
+                    err_db.add(log)
+                    # 更新凭证错误信息
+                    from sqlalchemy import update
+                    await err_db.execute(
+                        update(Credential)
+                        .where(Credential.id == credential_id)
+                        .values(
+                            last_used_at=datetime.utcnow(),
+                            total_requests=Credential.total_requests + 1,
+                            failed_requests=Credential.failed_requests + 1,
+                            last_error=error_msg[:500]
+                        )
+                    )
+                    await err_db.commit()
+            except Exception as log_err:
+                log_error("Antigravity", f"错误日志记录失败: {log_err}")
+
         error_response = {
             "error": {
                 "message": str(e),
                 "type": "api_error",
-                "code": 500
+                "code": extract_status_code(error_msg, 500)
             }
         }
         yield f"data: {json.dumps(error_response)}\n\n"
 
 
-async def convert_antigravity_stream_to_gemini(lines_generator):
-    """将 Antigravity 流式响应转换为 Gemini SSE 格式"""
+async def convert_antigravity_stream_to_gemini(
+    lines_generator,
+    model: str = None,
+    user_id: int = None,
+    credential_id: int = None,
+    credential_email: str = None,
+    start_time: float = None,
+    endpoint: str = None
+):
+    """将 Antigravity 流式响应转换为 Gemini SSE 格式，并在完成时记录日志"""
+    stream_success = False
+
     try:
         async for line in lines_generator:
             if not line or not line.startswith("data: "):
@@ -232,6 +326,7 @@ async def convert_antigravity_stream_to_gemini(lines_generator):
 
             raw = line[6:].strip()
             if raw == "[DONE]":
+                stream_success = True
                 continue
 
             try:
@@ -239,16 +334,89 @@ async def convert_antigravity_stream_to_gemini(lines_generator):
                 # Antigravity 响应格式: {"response": {...}}
                 # Gemini 响应格式: {...}
                 gemini_data = data.get("response", data)
+
+                # 检查是否有 finishReason，表示流结束
+                candidates = gemini_data.get("candidates", [])
+                if candidates and candidates[0].get("finishReason"):
+                    stream_success = True
+
                 yield f"data: {json.dumps(gemini_data)}\n\n"
             except Exception as e:
                 log_error("Antigravity", f"Gemini 解析错误: {e}")
                 continue
+
+        # 流式传输成功完成，记录成功日志
+        if stream_success and user_id and credential_id:
+            try:
+                async with async_session() as log_db:
+                    latency_ms = round((time.time() - start_time), 1) if start_time else None
+                    log = UsageLog(
+                        user_id=user_id,
+                        credential_id=credential_id,
+                        model=model,
+                        endpoint=endpoint or "/antigravity/gemini",
+                        status_code=200,
+                        latency_ms=latency_ms,
+                        credential_email=credential_email,
+                        created_at=datetime.utcnow()
+                    )
+                    log_db.add(log)
+                    # 更新凭证使用时间
+                    from sqlalchemy import update
+                    await log_db.execute(
+                        update(Credential)
+                        .where(Credential.id == credential_id)
+                        .values(
+                            last_used_at=datetime.utcnow(),
+                            total_requests=Credential.total_requests + 1
+                        )
+                    )
+                    await log_db.commit()
+            except Exception as log_err:
+                log_error("Antigravity", f"Gemini 日志记录失败: {log_err}")
+
     except Exception as e:
+        error_msg = str(e)
         log_error("Antigravity", f"Gemini 流式转换错误: {e}")
+
+        # 记录错误日志
+        if user_id and credential_id:
+            try:
+                actual_status_code = extract_status_code(error_msg, 500)
+                async with async_session() as err_db:
+                    latency_ms = round((time.time() - start_time), 1) if start_time else None
+                    log = UsageLog(
+                        user_id=user_id,
+                        credential_id=credential_id,
+                        model=model,
+                        endpoint=endpoint or "/antigravity/gemini",
+                        status_code=actual_status_code,
+                        error_message=error_msg[:2000],
+                        latency_ms=latency_ms,
+                        credential_email=credential_email,
+                        created_at=datetime.utcnow()
+                    )
+                    err_db.add(log)
+                    # 更新凭证错误信息
+                    from sqlalchemy import update
+                    await err_db.execute(
+                        update(Credential)
+                        .where(Credential.id == credential_id)
+                        .values(
+                            last_used_at=datetime.utcnow(),
+                            total_requests=Credential.total_requests + 1,
+                            failed_requests=Credential.failed_requests + 1,
+                            last_error=error_msg[:500]
+                        )
+                    )
+                    await err_db.commit()
+            except Exception as log_err:
+                log_error("Antigravity", f"Gemini 错误日志记录失败: {log_err}")
+
         error_response = {
             "error": {
                 "message": str(e),
-                "code": 500,
+                "code": extract_status_code(error_msg, 500),
                 "status": "INTERNAL"
             }
         }
@@ -388,15 +556,19 @@ async def handle_chat_completions_antigravity(request: Request, user: User, db: 
 
     try:
         if stream:
-            # 流式响应
+            # 流式响应 - 日志在流完成后由 convert_antigravity_stream_to_openai 记录
             lines_gen = send_antigravity_request_stream(access_token, project_id, request_body)
 
-            # 记录成功日志
-            latency_ms = round((time.time() - start_time), 1)
-            await log_usage(db, user, credential, f"ag-{model}", "/v1/chat/completions", 200, latency_ms=latency_ms)
-
             return StreamingResponse(
-                convert_antigravity_stream_to_openai(lines_gen, f"ag-{model}", request_id),
+                convert_antigravity_stream_to_openai(
+                    lines_gen,
+                    f"ag-{model}",
+                    request_id,
+                    user_id=user.id,
+                    credential_id=credential.id,
+                    credential_email=credential.email,
+                    start_time=start_time
+                ),
                 media_type="text/event-stream"
             )
         else:
@@ -525,15 +697,19 @@ async def antigravity_chat_completions(request: Request, db: AsyncSession = Depe
 
     try:
         if stream:
-            # 流式响应
+            # 流式响应 - 日志在流完成后由 convert_antigravity_stream_to_openai 记录
             lines_gen = send_antigravity_request_stream(access_token, project_id, request_body)
 
-            # 记录成功日志
-            latency_ms = round((time.time() - start_time), 1)
-            await log_usage(db, user, credential, model, "/antigravity/v1/chat/completions", 200, latency_ms=latency_ms)
-
             return StreamingResponse(
-                convert_antigravity_stream_to_openai(lines_gen, model, request_id),
+                convert_antigravity_stream_to_openai(
+                    lines_gen,
+                    model,
+                    request_id,
+                    user_id=user.id,
+                    credential_id=credential.id,
+                    credential_email=credential.email,
+                    start_time=start_time
+                ),
                 media_type="text/event-stream"
             )
         else:
@@ -790,15 +966,19 @@ async def gemini_stream_generate_content(
     )
 
     try:
-        # 发送流式请求
+        # 发送流式请求 - 日志在流完成后由 convert_antigravity_stream_to_gemini 记录
         lines_gen = send_antigravity_request_stream(access_token, project_id, request_body)
 
-        # 记录日志
-        latency_ms = round((time.time() - start_time), 1)
-        await log_usage(db, user, credential, model, f"/antigravity/v1/models/{model}:streamGenerateContent", 200, latency_ms=latency_ms)
-
         return StreamingResponse(
-            convert_antigravity_stream_to_gemini(lines_gen),
+            convert_antigravity_stream_to_gemini(
+                lines_gen,
+                model=model,
+                user_id=user.id,
+                credential_id=credential.id,
+                credential_email=credential.email,
+                start_time=start_time,
+                endpoint=f"/antigravity/v1/models/{model}:streamGenerateContent"
+            ),
             media_type="text/event-stream"
         )
 
