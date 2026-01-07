@@ -788,6 +788,24 @@ async def get_logs(
     result = await db.execute(query)
     logs = result.all()
     
+    def get_api_source(log):
+        """根据日志信息判断 API 调用来源"""
+        model = log.UsageLog.model or ""
+        endpoint = log.UsageLog.endpoint or ""
+        credential_id = log.UsageLog.credential_id
+
+        # Antigravity: 模型以 ag- 开头或端点包含 antigravity
+        if model.startswith("ag-") or "antigravity" in endpoint.lower():
+            return "Antigravity"
+        # GeminiCLI: 有凭证ID且模型是 gemini 系列
+        elif credential_id and ("gemini" in model.lower() or model.startswith("gemini")):
+            return "GeminiCLI"
+        # OpenAI: 无凭证ID 或其他情况
+        elif not credential_id:
+            return "OpenAI"
+        else:
+            return "GeminiCLI"
+
     return {
         "logs": [
             {
@@ -800,9 +818,12 @@ async def get_logs(
                 "error_type": log.UsageLog.error_type,
                 "error_type_name": get_error_type_name(log.UsageLog.error_type) if log.UsageLog.error_type else None,
                 "error_code": log.UsageLog.error_code,
+                "api_source": get_api_source(log),
                 "credential_email": log.UsageLog.credential_email,
                 "credential_name": log.UsageLog.credential_email,  # 兼容前端
                 "latency_ms": log.UsageLog.latency_ms,
+                "tokens_input": log.UsageLog.tokens_input,
+                "tokens_output": log.UsageLog.tokens_output,
                 "cd_seconds": log.UsageLog.cd_seconds,
                 "created_at": log.UsageLog.created_at.isoformat() + "Z"
             }

@@ -1,10 +1,39 @@
-import { Eye, X } from 'lucide-react';
+import { Eye, RefreshCw, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import api from '../../api/index';
 import { Pagination } from '../../components/common/Pagination';
 import { useToast } from '../../contexts/ToastContext';
 
 const LOGS_PER_PAGE = 50;
+
+// 状态码颜色 Badge 组件
+const StatusCodeBadge = ({ code }) => {
+  let colorClass = 'bg-gray-500/20 text-gray-400';
+  if (code >= 500) colorClass = 'bg-red-500/10 text-red-400 border border-red-500/20';
+  else if (code === 429) colorClass = 'bg-orange-500/10 text-orange-400 border border-orange-500/20';
+  else if (code >= 400) colorClass = 'bg-yellow-500/10 text-yellow-400 border border-yellow-500/20';
+  else if (code >= 200) colorClass = 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20';
+
+  return (
+    <span className={`px-2 py-0.5 rounded text-xs font-mono font-medium ${colorClass}`}>
+      {code}
+    </span>
+  );
+};
+
+// API 来源 Badge 组件
+const ApiSourceBadge = ({ source }) => {
+  const config = {
+    'OpenAI': 'bg-green-500/20 text-green-400',
+    'GeminiCLI': 'bg-blue-500/20 text-blue-400',
+    'Antigravity': 'bg-purple-500/20 text-purple-400',
+  };
+  return (
+    <span className={`px-2 py-0.5 rounded text-xs font-medium ${config[source] || 'bg-gray-500/20 text-gray-400'}`}>
+      {source || '-'}
+    </span>
+  );
+};
 
 export default function LogsTab() {
   const toast = useToast();
@@ -111,6 +140,14 @@ export default function LogsTab() {
           }}
           className="px-4 py-2 bg-dark-800 border border-dark-600 rounded-lg text-white"
         />
+        <button
+          onClick={fetchLogs}
+          disabled={loading}
+          className="p-2 rounded-lg hover:bg-dark-700 text-gray-400 hover:text-white disabled:opacity-50"
+          title="刷新"
+        >
+          <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />
+        </button>
         <span className="text-gray-400 text-sm">共 {total} 条记录</span>
       </div>
 
@@ -125,9 +162,10 @@ export default function LogsTab() {
                 <th>时间</th>
                 <th>用户</th>
                 <th>模型</th>
-                <th>凭证</th>
+                <th>来源</th>
                 <th>状态</th>
                 <th>耗时</th>
+                <th>Token</th>
                 <th>操作</th>
               </tr>
             </thead>
@@ -139,30 +177,19 @@ export default function LogsTab() {
                   </td>
                   <td className="text-sm">{log.username || '-'}</td>
                   <td className="text-sm">
-                    <span
-                      className={`px-2 py-0.5 rounded text-xs ${
-                        log.model?.includes('pro')
-                          ? 'bg-orange-500/20 text-orange-400'
-                          : log.model?.includes('flash')
-                          ? 'bg-cyan-500/20 text-cyan-400'
-                          : 'bg-gray-500/20 text-gray-400'
-                      }`}
-                    >
-                      {log.model || '-'}
-                    </span>
-                  </td>
-                  <td className="text-gray-400 text-xs max-w-[150px] truncate" title={log.credential_name}>
-                    {log.credential_name || '-'}
+                    <span className="text-primary-400 font-mono text-xs">{log.model || '-'}</span>
                   </td>
                   <td>
-                    {log.status === 'success' ? (
-                      <span className="text-green-400 text-xs">成功</span>
-                    ) : (
-                      <span className="text-red-400 text-xs">{log.error_code || '失败'}</span>
-                    )}
+                    <ApiSourceBadge source={log.api_source} />
+                  </td>
+                  <td>
+                    <StatusCodeBadge code={log.status_code} />
                   </td>
                   <td className="text-gray-400 text-xs">
-                    {log.latency_ms ? `${log.latency_ms}ms` : '-'}
+                    {log.latency_ms ? `${log.latency_ms.toFixed(1)}s` : '-'}
+                  </td>
+                  <td className="text-gray-400 text-xs font-mono">
+                    {log.tokens_input || 0} / {log.tokens_output || 0}
                   </td>
                   <td>
                     <button
@@ -212,26 +239,32 @@ export default function LogsTab() {
                     </div>
                     <div>
                       <span className="text-gray-400">状态:</span>{' '}
-                      <span className={detailModal.data.status === 'success' ? 'text-green-400' : 'text-red-400'}>
-                        {detailModal.data.status}
-                      </span>
+                      <StatusCodeBadge code={detailModal.data.status_code} />
                     </div>
                     <div>
                       <span className="text-gray-400">耗时:</span>{' '}
-                      <span className="text-white">{detailModal.data.latency_ms}ms</span>
+                      <span className="text-white">{detailModal.data.latency_ms}s</span>
+                    </div>
+                    <div>
+                      <span className="text-gray-400">凭证:</span>{' '}
+                      <span className="text-white">{detailModal.data.credential_email || '-'}</span>
+                    </div>
+                    <div>
+                      <span className="text-gray-400">客户端IP:</span>{' '}
+                      <span className="text-white">{detailModal.data.client_ip || '-'}</span>
                     </div>
                   </div>
                   {detailModal.data.error_message && (
                     <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-lg">
                       <div className="text-red-400 text-sm font-medium mb-1">错误信息</div>
-                      <div className="text-red-300 text-sm">{detailModal.data.error_message}</div>
+                      <div className="text-red-300 text-sm break-all">{detailModal.data.error_message}</div>
                     </div>
                   )}
-                  {detailModal.data.request_preview && (
+                  {detailModal.data.request_body && (
                     <div>
-                      <div className="text-gray-400 text-sm mb-1">请求预览</div>
+                      <div className="text-gray-400 text-sm mb-1">请求内容</div>
                       <pre className="p-3 bg-dark-900 rounded-lg text-xs text-gray-300 overflow-auto max-h-40">
-                        {detailModal.data.request_preview}
+                        {detailModal.data.request_body}
                       </pre>
                     </div>
                   )}

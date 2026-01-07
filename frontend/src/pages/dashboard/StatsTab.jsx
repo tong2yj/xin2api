@@ -42,6 +42,20 @@ export default function StatsTab() {
     );
   };
 
+  // API 来源 Badge 组件
+  const ApiSourceBadge = ({ source }) => {
+    const config = {
+      'OpenAI': 'bg-green-500/20 text-green-400',
+      'GeminiCLI': 'bg-blue-500/20 text-blue-400',
+      'Antigravity': 'bg-purple-500/20 text-purple-400',
+    };
+    return (
+      <span className={`px-2 py-0.5 rounded text-xs font-medium ${config[source] || 'bg-gray-500/20 text-gray-400'}`}>
+        {source || '-'}
+      </span>
+    );
+  };
+
   const columns = [
     {
       key: 'created_at',
@@ -54,9 +68,9 @@ export default function StatsTab() {
       render: (val) => <span className="text-primary-400 font-mono text-xs">{val || '-'}</span>,
     },
     {
-      key: 'endpoint',
-      label: '接口',
-      render: (val) => <span className="text-dark-300 text-xs truncate max-w-[150px] block" title={val}>{val || '-'}</span>,
+      key: 'api_source',
+      label: '来源',
+      render: (val) => <ApiSourceBadge source={val} />,
     },
     {
       key: 'status_code',
@@ -76,11 +90,6 @@ export default function StatsTab() {
           {row.tokens_input || 0} / {row.tokens_output || 0}
         </span>
       ),
-    },
-    {
-      key: 'credential_email',
-      label: '凭证',
-      render: (val) => <span className="text-dark-400 text-xs truncate max-w-[150px] block" title={val}>{val || '-'}</span>,
     },
   ];
 

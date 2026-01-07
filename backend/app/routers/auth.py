@@ -1041,6 +1041,21 @@ async def get_my_stats(user: User = Depends(get_current_user), db: AsyncSession 
     )
     logs = logs_result.scalars().all()
 
+    def get_api_source(log):
+        """根据日志信息判断 API 调用来源"""
+        model = log.model or ""
+        endpoint = log.endpoint or ""
+        credential_id = log.credential_id
+
+        if model.startswith("ag-") or "antigravity" in endpoint.lower():
+            return "Antigravity"
+        elif credential_id and ("gemini" in model.lower() or model.startswith("gemini")):
+            return "GeminiCLI"
+        elif not credential_id:
+            return "OpenAI"
+        else:
+            return "GeminiCLI"
+
     today_logs = [
         {
             "id": log.id,
@@ -1050,6 +1065,7 @@ async def get_my_stats(user: User = Depends(get_current_user), db: AsyncSession 
             "latency_ms": log.latency_ms,
             "tokens_input": log.tokens_input,
             "tokens_output": log.tokens_output,
+            "api_source": get_api_source(log),
             "credential_email": log.credential_email,
             "created_at": log.created_at.isoformat() + "Z" if log.created_at else None
         }
