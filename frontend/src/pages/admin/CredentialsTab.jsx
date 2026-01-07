@@ -3,12 +3,12 @@ import {
   Download,
   ExternalLink,
   Eye,
-  Plus,
+  Upload,
   RefreshCw,
   Trash2,
   X,
 } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../../api/index';
 import { Button } from '../../components/common/Button';
@@ -24,9 +24,9 @@ export default function CredentialsTab() {
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
 
-  // 添加凭证表单
-  const [newCredName, setNewCredName] = useState('');
-  const [newCredKey, setNewCredKey] = useState('');
+  // 导入凭证
+  const fileInputRef = useRef(null);
+  const [importing, setImporting] = useState(false);
 
   // 批量操作状态
   const [verifyingAll, setVerifyingAll] = useState(false);
@@ -89,16 +89,34 @@ export default function CredentialsTab() {
   );
 
   // 凭证操作
-  const addCredential = async () => {
-    if (!newCredName.trim() || !newCredKey.trim()) return;
+  const handleImportClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setImporting(true);
     try {
-      await api.post('/api/admin/credentials', { name: newCredName, api_key: newCredKey });
-      setNewCredName('');
-      setNewCredKey('');
+      const text = await file.text();
+      const data = JSON.parse(text);
+
+      const res = await api.post('/api/admin/credentials/import', data);
+      toast.success(res.data.message);
       fetchCredentials();
-      toast.success('凭证添加成功');
     } catch (err) {
-      toast.error('凭证添加失败');
+      if (err instanceof SyntaxError) {
+        toast.error('JSON格式错误');
+      } else {
+        toast.error(err.response?.data?.detail || '导入失败');
+      }
+    } finally {
+      setImporting(false);
+      // 清空文件输入，允许重复选择同一文件
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
     }
   };
 
@@ -334,32 +352,29 @@ export default function CredentialsTab() {
         )}
       </div>
 
-      {/* 手动添加凭证 (折叠式或紧凑式) */}
+      {/* 导入凭证 */}
       <div className="bg-dark-800/30 border border-white/5 rounded-xl p-4">
         <div className="flex flex-col md:flex-row items-center gap-3">
-          <div className="text-sm font-medium text-dark-300 whitespace-nowrap mr-2">快速添加:</div>
+          <div className="text-sm font-medium text-dark-300 whitespace-nowrap mr-2">批量导入:</div>
+          <div className="flex-1 text-sm text-dark-400">
+            支持导入从"导出"功能生成的 JSON 文件，自动跳过重复凭证
+          </div>
           <input
-            type="text"
-            value={newCredName}
-            onChange={(e) => setNewCredName(e.target.value)}
-            placeholder="凭证名称"
-            className="w-full md:w-48 px-3 py-1.5 bg-dark-900 border border-dark-700 rounded-lg text-sm text-white placeholder-gray-500 focus:border-primary-500/50 outline-none"
-          />
-          <input
-            type="text"
-            value={newCredKey}
-            onChange={(e) => setNewCredKey(e.target.value)}
-            placeholder="Gemini API Key"
-            className="flex-1 px-3 py-1.5 bg-dark-900 border border-dark-700 rounded-lg text-sm text-white placeholder-gray-500 focus:border-primary-500/50 outline-none"
+            type="file"
+            ref={fileInputRef}
+            onChange={handleFileChange}
+            accept=".json"
+            className="hidden"
           />
           <Button
-            onClick={addCredential}
-            disabled={!newCredName.trim() || !newCredKey.trim()}
+            onClick={handleImportClick}
+            disabled={importing}
             variant="primary"
             size="sm"
-            icon={Plus}
+            icon={Upload}
+            loading={importing}
           >
-            添加
+            选择文件导入
           </Button>
         </div>
       </div>
@@ -390,14 +405,14 @@ export default function CredentialsTab() {
                     className={`text-xs px-2 py-0.5 rounded ${
                       c.credential_type === 'oauth_antigravity'
                         ? 'bg-purple-500/20 text-purple-400'
-                        : c.credential_type === 'gemini_cli'
+                        : c.credential_type === 'gemini_cli' || c.credential_type === 'oauth'
                         ? 'bg-blue-500/20 text-blue-400'
                         : 'bg-gray-500/20 text-gray-400'
                     }`}
                   >
                     {c.credential_type === 'oauth_antigravity'
                       ? 'Antigravity'
-                      : c.credential_type === 'gemini_cli'
+                      : c.credential_type === 'gemini_cli' || c.credential_type === 'oauth'
                       ? 'GeminiCli'
                       : 'API Key'}
                   </span>
