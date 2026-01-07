@@ -22,7 +22,7 @@
 ### 🔑 核心功能
 - **OpenAI 兼容 API** - 直接替换 OpenAI 端点使用，无缝对接现有应用
 - **Gemini 原生 API** - 支持 generateContent / streamGenerateContent
-- **反向代理** - 可作为 Gemini API 反代使用，支持多种模型
+- **反向代理** - 可作为 Gemini CLI 反代使用，支持多种模型
 
 ### 👥 用户管理
 - **用户系统** - 完整的注册登录、配额管理、使用统计
@@ -450,7 +450,7 @@ cd /opt/catiecli && git pull && docker-compose up -d --build
 **可能原因**:
 1. Google 账号被封禁
 2. Refresh Token 已过期
-3. 账号未开通 Gemini API
+3. 账号未开通 Gemini CLI
 
 **解决方法**: 删除该凭证，重新通过 OAuth 授权获取新凭证。
 

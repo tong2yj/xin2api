@@ -367,22 +367,6 @@ async def options_handler():
 @router.get("/v1/models")
 async def list_models(request: Request, user: User = Depends(get_user_from_api_key), db: AsyncSession = Depends(get_db)):
     """列出可用模型 (OpenAI兼容) - 统一端点，包含 Gemini、Antigravity 和 OpenAI 兼容端点的模型"""
-    from app.models.user import Credential
-
-    # 检查是否有 Antigravity 凭证
-    result = await db.execute(
-        select(Credential)
-        .where(
-            or_(
-                Credential.user_id == user.id,
-                Credential.is_public == True
-            )
-        )
-        .where(Credential.credential_type == "oauth_antigravity")
-        .where(Credential.is_active == True)
-        .limit(1)
-    )
-    has_antigravity = result.scalar_one_or_none() is not None
 
     # ========== Gemini CLI 模型 ==========
     # 基础模型 (包含 2.5 和 3.0)
@@ -419,30 +403,29 @@ async def list_models(request: Request, user: User = Depends(get_user_from_api_k
     models.append({"id": "gemini-2.5-flash-image", "object": "model", "owned_by": "google"})
 
     # ========== Antigravity 模型（带 ag- 前缀）==========
-    if has_antigravity:
-        # Gemini 模型（通过 Antigravity）
-        ag_gemini_models = [
-            "ag-gemini-2.5-pro",
-            "ag-gemini-2.5-flash",
-            "ag-gemini-2.5-flash-thinking",
-            "ag-gemini-3-pro-preview",
-            "ag-gemini-3-flash-preview",
-            "ag-gemini-3-pro-low",
-            "ag-gemini-3-pro-high",
-            "ag-gemini-3-pro-image",
-            "ag-gemini-2.5-flash-lite",
-            "ag-gemini-2.5-flash-image",
-        ]
+    # Gemini 模型（通过 Antigravity）
+    ag_gemini_models = [
+        "ag-gemini-2.5-pro",
+        "ag-gemini-2.5-flash",
+        "ag-gemini-2.5-flash-thinking",
+        "ag-gemini-3-pro-preview",
+        "ag-gemini-3-flash-preview",
+        "ag-gemini-3-pro-low",
+        "ag-gemini-3-pro-high",
+        "ag-gemini-3-pro-image",
+        "ag-gemini-2.5-flash-lite",
+        "ag-gemini-2.5-flash-image",
+    ]
 
-        # Claude 模型（通过 Antigravity）
-        ag_claude_models = [
-            "ag-claude-sonnet-4-5",
-            "ag-claude-sonnet-4-5-thinking",
-            "ag-claude-opus-4-5-thinking",
-        ]
+    # Claude 模型（通过 Antigravity）
+    ag_claude_models = [
+        "ag-claude-sonnet-4-5",
+        "ag-claude-sonnet-4-5-thinking",
+        "ag-claude-opus-4-5-thinking",
+    ]
 
-        for model_id in ag_gemini_models + ag_claude_models:
-            models.append({"id": model_id, "object": "model", "owned_by": "antigravity"})
+    for model_id in ag_gemini_models + ag_claude_models:
+        models.append({"id": model_id, "object": "model", "owned_by": "antigravity"})
 
     # ========== OpenAI 兼容端点的模型 ==========
     # 获取所有启用的 OpenAI 端点

@@ -64,7 +64,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="Catiecli",
-    description="🐱 Catiecli - Gemini API 多用户代理服务",
+    description="🐱 Catiecli - Gemini CLI 多用户代理服务",
     version="1.0.0",
     lifespan=lifespan
 )

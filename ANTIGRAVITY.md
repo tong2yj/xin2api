@@ -2,7 +2,7 @@
 
 ## 📋 概述
 
-Antigravity是Google提供的另一个Gemini API服务端点，支持更多模型（包括Claude系列）。本项目已集成Antigravity反代功能。
+Antigravity是Google提供的另一个Gemini服务端点，支持更多模型（包括Claude系列）。本项目已集成Antigravity反代功能。
 
 ## 🎯 支持的模型
 

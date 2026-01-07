@@ -2,7 +2,7 @@ apiVersion: zeabur.com/v1
 kind: Template
 metadata:
   name: CatieCli
-  description: Gemini API 多用户代理服务 - 支持 OpenAI 兼容接口、Gemini 原生接口、凭证池管理
+  description: Gemini CLI 多用户代理服务 - 支持 OpenAI 兼容接口、Gemini 原生接口、凭证池管理
   icon: https://raw.githubusercontent.com/mzrodyu/CatieCli/main/frontend/public/cat.svg
   tags:
     - API
@@ -38,7 +38,7 @@ spec:
           description: 是否允许注册（true/false）
           default: 'true'
         - key: GEMINI_TIMEOUT
-          description: Gemini API 请求超时时间（秒）
+          description: Gemini CLI 请求超时时间（秒）
           default: "60"
         - key: PORT
           description: 服务端口（Zeabur必须8080，请勿修改）

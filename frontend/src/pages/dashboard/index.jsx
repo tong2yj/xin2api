@@ -91,6 +91,7 @@ export default function Dashboard() {
       connected={connected}
       showAdminLinks
       subtitle="控制台"
+      backTo={null}
     >
       {/* OAuth Message */}
       {oauthMessage && (

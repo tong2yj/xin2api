@@ -216,9 +216,9 @@ export default function OAuth() {
               }`}
             >
               <div className={`text-lg font-bold mb-2 transition-colors ${!forAntigravity ? 'text-blue-400' : 'text-dark-300 group-hover:text-dark-100'}`}>
-                 🤖 Gemini API
+                 🤖 Gemini CLI
               </div>
-              <div className="text-sm text-dark-400">用于 Gemini 官方 API</div>
+              <div className="text-sm text-dark-400">用于 Gemini CLI 反代</div>
             </button>
             <button
               onClick={() => setForAntigravity(true)}

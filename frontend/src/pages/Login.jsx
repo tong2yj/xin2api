@@ -47,7 +47,7 @@ export default function Login() {
             Catiecli
           </h1>
           <p className="text-dark-400 mt-3 text-lg">
-            Gemini API 多用户代理服务
+            Gemini CLI 多用户代理服务
           </p>
         </div>
 

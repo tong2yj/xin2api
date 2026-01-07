@@ -1,14 +1,16 @@
-import { 
-  LayoutDashboard, 
-  Users, 
-  Key, 
-  Settings, 
-  ScrollText, 
-  LogOut, 
+import {
+  LayoutDashboard,
+  Users,
+  Key,
+  Settings,
+  ScrollText,
+  LogOut,
   Menu,
-  ChevronRight
+  ChevronRight,
+  Home
 } from 'lucide-react';
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { Button } from '../../components/common/Button';
 
@@ -49,7 +51,7 @@ export function AdminLayout({ children, activeTab, onTabChange }) {
             </div>
             <div>
               <h1 className="font-bold text-lg tracking-tight">管理后台</h1>
-              <p className="text-xs text-dark-400">Gemini API Proxy</p>
+              <p className="text-xs text-dark-400">Gemini CLI Proxy</p>
             </div>
           </div>
 
@@ -93,8 +95,17 @@ export function AdminLayout({ children, activeTab, onTabChange }) {
                 <p className="text-xs text-dark-400 truncate">管理员</p>
               </div>
             </div>
-            <Button 
-              variant="ghost" 
+            <Link to="/dashboard">
+              <Button
+                variant="ghost"
+                className="w-full justify-start text-blue-400 hover:text-blue-300 hover:bg-blue-500/10 mb-2"
+                icon={Home}
+              >
+                返回主页
+              </Button>
+            </Link>
+            <Button
+              variant="ghost"
               className="w-full justify-start text-red-400 hover:text-red-300 hover:bg-red-500/10"
               icon={LogOut}
               onClick={logout}

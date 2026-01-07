@@ -5,7 +5,7 @@ from app.config import settings
 
 
 class GeminiClient:
-    """Gemini API 客户端 - 使用 Google 内部 API"""
+    """Gemini CLI 客户端 - 使用 Google 内部 API"""
     
     # 内部 API 端点
     INTERNAL_API_BASE = "https://cloudcode-pa.googleapis.com"

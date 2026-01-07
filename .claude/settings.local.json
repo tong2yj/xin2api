@@ -42,7 +42,8 @@
       "Bash(docker builder prune:*)",
       "Bash(docker image prune:*)",
       "Bash(find:*)",
-      "Bash(git remote set-url:*)"
+      "Bash(git remote set-url:*)",
+      "Bash(docker-compose -f /d/cc/CatieCli-main/docker-compose.yml ps)"
     ]
   }
 }

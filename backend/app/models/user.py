@@ -84,7 +84,7 @@ class Credential(Base):
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=True)  # 所属用户
     name = Column(String(100), nullable=False)
-    api_key = Column(Text, nullable=False)  # Gemini API Key 或 OAuth access_token
+    api_key = Column(Text, nullable=False)  # Gemini CLI Token 或 OAuth access_token
     refresh_token = Column(Text, nullable=True)  # OAuth refresh_token
     client_id = Column(Text, nullable=True)  # OAuth client_id（加密存储）
     client_secret = Column(Text, nullable=True)  # OAuth client_secret（加密存储）
