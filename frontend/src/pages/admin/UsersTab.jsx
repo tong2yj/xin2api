@@ -106,9 +106,6 @@ export default function UsersTab() {
       userId,
       defaultValues: {
         daily_quota: user.daily_quota || 0,
-        quota_flash: user.quota_flash || 0,
-        quota_25pro: user.quota_25pro || 0,
-        quota_30pro: user.quota_30pro || 0,
       },
     });
   };

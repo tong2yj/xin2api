@@ -160,32 +160,20 @@ export function AlertModal({ isOpen, onClose, title, message, type = 'info' }) {
 }
 
 /**
- * 配额设置弹窗（支持按模型分类）
+ * 配额设置弹窗
  */
 export function QuotaModal({ isOpen, onClose, onSubmit, title, defaultValues = {} }) {
-  const [values, setValues] = useState({
-    quota_flash: defaultValues.quota_flash || 0,
-    quota_25pro: defaultValues.quota_25pro || 0,
-    quota_30pro: defaultValues.quota_30pro || 0
-  })
+  const [quota, setQuota] = useState(defaultValues.daily_quota || 0)
 
   useEffect(() => {
     if (isOpen) {
-      setValues({
-        quota_flash: defaultValues.quota_flash || 0,
-        quota_25pro: defaultValues.quota_25pro || 0,
-        quota_30pro: defaultValues.quota_30pro || 0
-      })
+      setQuota(defaultValues.daily_quota || 0)
     }
   }, [isOpen, defaultValues])
 
-  // 总配额自动计算
-  const totalQuota = values.quota_flash + values.quota_25pro + values.quota_30pro
-
   const handleSubmit = (e) => {
     e.preventDefault()
-    // 提交时自动计算总配额
-    onSubmit({ ...values, daily_quota: totalQuota })
+    onSubmit({ daily_quota: quota })
     onClose()
   }
 
@@ -194,42 +182,17 @@ export function QuotaModal({ isOpen, onClose, onSubmit, title, defaultValues = {
       <form onSubmit={handleSubmit}>
         <div className="space-y-4">
           <div>
-            <p className="text-gray-400 text-sm mb-3">按模型配额（0=使用系统默认）</p>
-            <div className="grid grid-cols-3 gap-3">
-              <div>
-                <label className="block text-cyan-400 text-xs mb-1">Flash</label>
-                <input
-                  type="number"
-                  value={values.quota_flash}
-                  onChange={(e) => setValues({ ...values, quota_flash: parseInt(e.target.value) || 0 })}
-                  className="w-full px-3 py-2 bg-dark-900 border border-cyan-700/50 rounded-lg text-white text-sm focus:border-cyan-500 focus:outline-none"
-                />
-              </div>
-              <div>
-                <label className="block text-orange-400 text-xs mb-1">2.5 Pro</label>
-                <input
-                  type="number"
-                  value={values.quota_25pro}
-                  onChange={(e) => setValues({ ...values, quota_25pro: parseInt(e.target.value) || 0 })}
-                  className="w-full px-3 py-2 bg-dark-900 border border-orange-700/50 rounded-lg text-white text-sm focus:border-orange-500 focus:outline-none"
-                />
-              </div>
-              <div>
-                <label className="block text-pink-400 text-xs mb-1">3.0</label>
-                <input
-                  type="number"
-                  value={values.quota_30pro}
-                  onChange={(e) => setValues({ ...values, quota_30pro: parseInt(e.target.value) || 0 })}
-                  className="w-full px-3 py-2 bg-dark-900 border border-pink-700/50 rounded-lg text-white text-sm focus:border-pink-500 focus:outline-none"
-                />
-              </div>
-            </div>
-          </div>
-          <div className="border-t border-dark-600 pt-4">
-            <div className="flex justify-between items-center">
-              <span className="text-gray-400 text-sm">总配额（自动计算）</span>
-              <span className="text-purple-400 font-semibold">{totalQuota.toLocaleString()}</span>
-            </div>
+            <label className="block text-gray-400 text-sm mb-2">每日配额</label>
+            <input
+              type="number"
+              value={quota}
+              onChange={(e) => setQuota(parseInt(e.target.value) || 0)}
+              className="w-full px-4 py-3 bg-dark-900 border border-dark-600 rounded-lg text-white placeholder-gray-500 focus:border-purple-500 focus:outline-none"
+              placeholder="输入每日配额"
+            />
+            <p className="text-xs text-gray-500 mt-2">
+              设置为 0 表示禁用该用户的访问权限
+            </p>
           </div>
         </div>
         <div className="flex justify-end gap-3 mt-6">

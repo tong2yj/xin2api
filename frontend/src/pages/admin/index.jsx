@@ -18,7 +18,6 @@ import ErrorsTab from './ErrorsTab';
 import GlobalStatsTab from './GlobalStatsTab';
 import LogsTab from './LogsTab';
 import OpenAIEndpointsTab from './OpenAIEndpointsTab';
-import SettingsTab from './SettingsTab';
 import SystemSettingsTab from './SystemSettingsTab';
 import UsersTab from './UsersTab';
 
@@ -78,13 +77,8 @@ export default function Admin() {
         {/* 系统设置 */}
         <section>
           <SectionHeader icon={SettingsIcon} title="系统设置" />
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-             <div className="space-y-6">
-                <SystemSettingsTab key={`system-${refreshKey}`} />
-             </div>
-             <div className="space-y-6">
-                <SettingsTab key={`quota-${refreshKey}`} />
-             </div>
+          <div className="space-y-6">
+             <SystemSettingsTab key={`system-${refreshKey}`} />
           </div>
         </section>
 

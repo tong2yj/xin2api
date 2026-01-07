@@ -3,12 +3,19 @@ import { useEffect, useState } from 'react';
 import api from '../../api';
 import { Button } from '../../components/common/Button';
 import { Card } from '../../components/common/Card';
+import { ConfirmModal } from '../../components/modals/Modal';
+import { useToast } from '../../contexts/ToastContext';
 
 export default function SystemSettingsTab() {
+  const toast = useToast();
   const [config, setConfig] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState(null);
+
+  // 批量设置配额状态
+  const [batchQuota, setBatchQuota] = useState('');
+  const [confirmModal, setConfirmModal] = useState({ open: false, title: '', message: '', onConfirm: null });
 
   useEffect(() => {
     fetchConfig();
@@ -54,6 +61,27 @@ export default function SystemSettingsTab() {
     } finally {
       setSaving(false);
     }
+  };
+
+  const applyQuotaToAll = () => {
+    if (!batchQuota) return;
+    setConfirmModal({
+      open: true,
+      title: '批量设置配额',
+      message: `确定将所有用户配额设为 ${batchQuota} 次/天？此操作将覆盖所有用户的现有配额设置。`,
+      onConfirm: async () => {
+        setSaving(true); // Reuse saving state for loading indication
+        try {
+          await api.post('/api/admin/settings/batch-quota', { quota: parseInt(batchQuota) });
+          toast.success('批量更新成功');
+          setBatchQuota('');
+        } catch (err) {
+          toast.error('批量更新失败: ' + (err.response?.data?.detail || err.message));
+        } finally {
+          setSaving(false);
+        }
+      },
+    });
   };
 
   if (loading) {
@@ -108,6 +136,34 @@ export default function SystemSettingsTab() {
               hint="例如 1500，上传1个凭证后总配额 = 默认 + 1500"
               hintColor="text-emerald-400"
             />
+          </div>
+
+          {/* 批量设置配额 (New Section) */}
+          <div className="bg-dark-800/30 rounded-xl p-5 border border-white/5">
+            <h3 className="font-semibold text-dark-50 mb-2">批量设置配额 ⚡</h3>
+            <p className="text-dark-400 text-sm mb-4">将所有用户的配额统一设置为指定值（谨慎操作）</p>
+            <div className="flex items-center gap-4">
+              <input
+                type="number"
+                value={batchQuota}
+                onChange={(e) => setBatchQuota(e.target.value)}
+                placeholder="输入配额值"
+                className="w-32 bg-dark-950 border border-dark-700 rounded-lg px-4 py-2 text-white placeholder-dark-500 focus:outline-none focus:ring-2 focus:ring-primary-500"
+              />
+              <span className="text-dark-400 text-sm">次/天</span>
+              <Button
+                onClick={applyQuotaToAll}
+                disabled={!batchQuota}
+                loading={saving} // Reuse saving state
+                variant="secondary"
+                size="sm"
+              >
+                应用到所有用户
+              </Button>
+            </div>
+            <p className="text-amber-400/70 text-xs mt-2 flex items-center gap-1">
+              <span className="text-amber-500">⚠️</span> 此操作将覆盖所有用户的现有配额设置
+            </p>
           </div>
 
           {/* 强制公开 & 锁定公开 */}
@@ -230,6 +286,16 @@ export default function SystemSettingsTab() {
           保存配置
         </Button>
       </div>
+
+      {/* 确认弹窗 */}
+      <ConfirmModal
+        isOpen={confirmModal.open}
+        onClose={() => setConfirmModal({ ...confirmModal, open: false })}
+        onConfirm={confirmModal.onConfirm}
+        title={confirmModal.title}
+        message={confirmModal.message}
+        danger={true}
+      />
     </div>
   );
 }
