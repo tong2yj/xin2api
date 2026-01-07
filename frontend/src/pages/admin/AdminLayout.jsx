@@ -84,9 +84,9 @@ export function AdminLayout({ children, activeTab, onTabChange }) {
             })}
           </nav>
 
-          {/* User Profile & Logout */}
+          {/* User Profile */}
           <div className="p-4 border-t border-white/5 bg-dark-900/50">
-            <div className="flex items-center gap-3 mb-4 px-2">
+            <div className="flex items-center gap-3 px-2">
               <div className="w-10 h-10 rounded-full bg-dark-800 border border-white/10 flex items-center justify-center text-dark-300 font-medium">
                 {user?.username?.[0]?.toUpperCase()}
               </div>
@@ -95,23 +95,6 @@ export function AdminLayout({ children, activeTab, onTabChange }) {
                 <p className="text-xs text-dark-400 truncate">管理员</p>
               </div>
             </div>
-            <Link to="/dashboard">
-              <Button
-                variant="ghost"
-                className="w-full justify-start text-blue-400 hover:text-blue-300 hover:bg-blue-500/10 mb-2"
-                icon={Home}
-              >
-                返回主页
-              </Button>
-            </Link>
-            <Button
-              variant="ghost"
-              className="w-full justify-start text-red-400 hover:text-red-300 hover:bg-red-500/10"
-              icon={LogOut}
-              onClick={logout}
-            >
-              退出登录
-            </Button>
           </div>
         </div>
       </aside>
@@ -121,7 +104,7 @@ export function AdminLayout({ children, activeTab, onTabChange }) {
         {/* Top Mobile Header */}
         <header className="lg:hidden h-16 border-b border-white/5 flex items-center justify-between px-4 bg-dark-900">
           <div className="flex items-center gap-3">
-            <button 
+            <button
               onClick={() => setMobileMenuOpen(true)}
               className="p-2 -ml-2 text-dark-400 hover:text-white"
             >
@@ -129,7 +112,49 @@ export function AdminLayout({ children, activeTab, onTabChange }) {
             </button>
             <span className="font-bold">管理后台</span>
           </div>
+          {/* Mobile Top Right Buttons */}
+          <div className="flex items-center gap-2">
+            <Link to="/dashboard">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="!p-2 text-blue-400 hover:text-blue-300 hover:bg-blue-500/10"
+                icon={Home}
+              />
+            </Link>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="!p-2 text-red-400 hover:text-red-300 hover:bg-red-500/10"
+              icon={LogOut}
+              onClick={logout}
+            />
+          </div>
         </header>
+
+        {/* Desktop Top Right Buttons */}
+        <div className="hidden lg:flex items-center justify-end gap-3 px-8 py-4 border-b border-white/5 bg-dark-900/50">
+          <span className="text-sm text-dark-400 mr-2">{user?.username}</span>
+          <Link to="/dashboard">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-blue-400 hover:text-blue-300 hover:bg-blue-500/10"
+              icon={Home}
+            >
+              返回主页
+            </Button>
+          </Link>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-red-400 hover:text-red-300 hover:bg-red-500/10"
+            icon={LogOut}
+            onClick={logout}
+          >
+            退出登录
+          </Button>
+        </div>
 
         {/* Content Area */}
         <div className="flex-1 overflow-y-auto bg-dark-950 scroll-smooth">

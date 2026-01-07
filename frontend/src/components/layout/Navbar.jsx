@@ -5,7 +5,7 @@ import { Link } from 'react-router-dom';
  * 通用导航栏组件
  */
 export function Navbar({
-  title = 'Catiecli',
+  title = 'Catie开心版',
   subtitle,
   backTo,
   backLabel = '返回',

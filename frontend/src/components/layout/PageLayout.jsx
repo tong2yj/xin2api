@@ -29,6 +29,19 @@ export function PageLayout({
       <span className="text-dark-300 text-sm hidden sm:inline font-medium">
         {user?.username}
       </span>
+      {/* 管理后台按钮 - 仅管理员可见 */}
+      {showAdminLinks && user?.is_admin && (
+        <Link to="/admin">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="!rounded-lg !py-1.5 !px-3 text-blue-400 hover:text-blue-300 hover:bg-blue-500/10"
+          >
+            <Settings size={14} className="mr-1.5" />
+            <span className="hidden sm:inline">管理后台</span>
+          </Button>
+        </Link>
+      )}
       <Button
         variant="danger"
         size="sm"
@@ -56,34 +69,11 @@ export function PageLayout({
           connected={connected}
         />
 
-        {/* 管理员链接栏 */}
-        {showAdminLinks && user?.is_admin && (
-          <div className="bg-bg-main/95 border-b border-white/5 backdrop-blur-sm sticky top-16 z-40">
-            <div className={`${maxWidthClass} mx-auto px-4 sm:px-6 lg:px-8`}>
-              <div className="flex items-center gap-1 py-2 overflow-x-auto no-scrollbar">
-                <AdminLink to="/admin" icon={Settings} label="管理后台" />
-              </div>
-            </div>
-          </div>
-        )}
-
         <main className={`${maxWidthClass} mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full flex-1 animate-fade-in`}>
           {children}
         </main>
       </div>
     </div>
-  );
-}
-
-function AdminLink({ to, icon: Icon, label }) {
-  return (
-    <Link
-      to={to}
-      className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium text-dark-400 hover:text-primary-300 hover:bg-white/5 transition-all whitespace-nowrap"
-    >
-      <Icon size={16} />
-      {label}
-    </Link>
   );
 }
 

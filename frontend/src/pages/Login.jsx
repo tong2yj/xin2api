@@ -44,7 +44,7 @@ export default function Login() {
             <Cat className="w-10 h-10 text-primary-400" />
           </div>
           <h1 className="text-4xl font-bold text-dark-50 tracking-tight">
-            Catiecli
+            Catie开心版
           </h1>
           <p className="text-dark-400 mt-3 text-lg">
             Gemini CLI 多用户代理服务
