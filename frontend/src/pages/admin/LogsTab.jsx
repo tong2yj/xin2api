@@ -61,7 +61,7 @@ export default function LogsTab() {
   const viewLogDetail = async (logId) => {
     setDetailModal({ open: true, data: null, loading: true });
     try {
-      const res = await api.get(`/api/manage/logs/${logId}`);
+      const res = await api.get(`/api/admin/logs/${logId}/detail`);
       setDetailModal({ open: true, data: res.data, loading: false });
     } catch (err) {
       setDetailModal({ open: false, data: null, loading: false });
@@ -162,7 +162,7 @@ export default function LogsTab() {
                     )}
                   </td>
                   <td className="text-gray-400 text-xs">
-                    {log.duration_ms ? `${log.duration_ms}ms` : '-'}
+                    {log.latency_ms ? `${log.latency_ms}ms` : '-'}
                   </td>
                   <td>
                     <button
@@ -218,7 +218,7 @@ export default function LogsTab() {
                     </div>
                     <div>
                       <span className="text-gray-400">耗时:</span>{' '}
-                      <span className="text-white">{detailModal.data.duration_ms}ms</span>
+                      <span className="text-white">{detailModal.data.latency_ms}ms</span>
                     </div>
                   </div>
                   {detailModal.data.error_message && (
