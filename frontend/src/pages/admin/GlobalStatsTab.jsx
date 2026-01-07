@@ -71,7 +71,7 @@ export default function GlobalStatsTab() {
 
   const fetchLogDetail = async (logId) => {
     try {
-      const res = await api.get(`/api/manage/logs/${logId}`);
+      const res = await api.get(`/api/admin/logs/${logId}/detail`);
       setSelectedLog(res.data);
     } catch (err) {
       console.error('获取日志详情失败', err);

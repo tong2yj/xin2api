@@ -82,6 +82,14 @@ app.add_middleware(
 # 注意：ASGI 中间件的执行顺序是后添加先执行，所以这个中间件会在 CORS 之后执行
 app.add_middleware(URLNormalizeMiddleware)
 
+@app.middleware("http")
+async def add_csp_header(request, call_next):
+    response = await call_next(request)
+    # 强制添加 CSP Header，覆盖任何默认设置
+    # 注意：script-src 添加 'unsafe-eval' 'unsafe-inline' 是为了支持某些前端库和动态脚本
+    response.headers["Content-Security-Policy"] = "script-src 'self' 'unsafe-inline' 'unsafe-eval' blob:; worker-src 'self' blob:;"
+    return response
+
 # 注册路由
 app.include_router(auth.router)
 app.include_router(proxy.router)

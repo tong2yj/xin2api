@@ -1,4 +1,4 @@
-import { Activity, LogOut, Settings, Users } from 'lucide-react';
+import { LogOut, Settings } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import Navbar from './Navbar';
@@ -61,9 +61,7 @@ export function PageLayout({
           <div className="bg-bg-main/95 border-b border-white/5 backdrop-blur-sm sticky top-16 z-40">
             <div className={`${maxWidthClass} mx-auto px-4 sm:px-6 lg:px-8`}>
               <div className="flex items-center gap-1 py-2 overflow-x-auto no-scrollbar">
-                <AdminLink to="/stats" icon={Activity} label="统计" />
-                <AdminLink to="/settings" icon={Settings} label="设置" />
-                <AdminLink to="/admin" icon={Users} label="用户管理" />
+                <AdminLink to="/admin" icon={Settings} label="管理后台" />
               </div>
             </div>
           </div>

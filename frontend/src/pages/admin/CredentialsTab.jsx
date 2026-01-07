@@ -11,6 +11,7 @@ import {
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../../api/index';
+import { Button } from '../../components/common/Button';
 import { Pagination } from '../../components/common/Pagination';
 import { ConfirmModal, AlertModal } from '../../components/modals/Modal';
 import { useToast } from '../../contexts/ToastContext';

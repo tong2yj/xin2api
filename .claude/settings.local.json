@@ -41,7 +41,8 @@
       "Bash(docker system:*)",
       "Bash(docker builder prune:*)",
       "Bash(docker image prune:*)",
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "Bash(git remote set-url:*)"
     ]
   }
 }
