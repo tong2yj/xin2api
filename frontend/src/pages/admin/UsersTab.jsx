@@ -18,8 +18,8 @@ export default function UsersTab() {
 
   // 模态框状态
   const [quotaModal, setQuotaModal] = useState({ open: false, userId: null, defaultValues: {} });
-  const [confirmModal, setConfirmModal] = useState({ open: false, title: '', message: '', onConfirm: null, danger: false });
-  const [inputModal, setInputModal] = useState({ open: false, title: '', label: '', defaultValue: '', onSubmit: null });
+  const [confirmModal, setConfirmModal] = useState({ open: false, title: '', message: '', onConfirm: () => {}, danger: false });
+  const [inputModal, setInputModal] = useState({ open: false, title: '', label: '', defaultValue: '', onSubmit: () => {} });
   const [alertModal, setAlertModal] = useState({ open: false, title: '', message: '', type: 'info' });
 
   const showAlert = (title, message, type = 'info') => setAlertModal({ open: true, title, message, type });
@@ -30,9 +30,10 @@ export default function UsersTab() {
     setLoading(true);
     try {
       const res = await api.get('/api/admin/users');
-      setUsers(res.data.users);
+      setUsers(Array.isArray(res.data?.users) ? res.data.users : []);
     } catch (err) {
       toast.error('获取用户列表失败');
+      setUsers([]);
     } finally {
       setLoading(false);
     }
@@ -44,6 +45,8 @@ export default function UsersTab() {
 
   // 处理用户列表：搜索 -> 排序 -> 分页
   const processedUsers = useMemo(() => {
+    if (!Array.isArray(users)) return [];
+    
     let result = [...users];
     // 搜索
     if (search.trim()) {

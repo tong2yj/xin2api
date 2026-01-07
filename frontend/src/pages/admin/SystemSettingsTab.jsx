@@ -15,7 +15,7 @@ export default function SystemSettingsTab() {
 
   // 批量设置配额状态
   const [batchQuota, setBatchQuota] = useState('');
-  const [confirmModal, setConfirmModal] = useState({ open: false, title: '', message: '', onConfirm: null });
+  const [confirmModal, setConfirmModal] = useState({ open: false, title: '', message: '', onConfirm: () => {} });
 
   useEffect(() => {
     fetchConfig();
@@ -27,6 +27,7 @@ export default function SystemSettingsTab() {
       setConfig(res.data);
     } catch (err) {
       console.error(err);
+      toast.error('加载配置失败');
     } finally {
       setLoading(false);
     }
@@ -70,7 +71,7 @@ export default function SystemSettingsTab() {
       title: '批量设置配额',
       message: `确定将所有用户配额设为 ${batchQuota} 次/天？此操作将覆盖所有用户的现有配额设置。`,
       onConfirm: async () => {
-        setSaving(true); // Reuse saving state for loading indication
+        setSaving(true); 
         try {
           await api.post('/api/admin/settings/batch-quota', { quota: parseInt(batchQuota) });
           toast.success('批量更新成功');
@@ -138,7 +139,7 @@ export default function SystemSettingsTab() {
             />
           </div>
 
-          {/* 批量设置配额 (New Section) */}
+          {/* 批量设置配额 */}
           <div className="bg-dark-800/30 rounded-xl p-5 border border-white/5">
             <h3 className="font-semibold text-dark-50 mb-2">批量设置配额 ⚡</h3>
             <p className="text-dark-400 text-sm mb-4">将所有用户的配额统一设置为指定值（谨慎操作）</p>
@@ -154,7 +155,7 @@ export default function SystemSettingsTab() {
               <Button
                 onClick={applyQuotaToAll}
                 disabled={!batchQuota}
-                loading={saving} // Reuse saving state
+                loading={saving}
                 variant="secondary"
                 size="sm"
               >
