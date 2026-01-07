@@ -24,6 +24,26 @@ from app.services.crypto import decrypt_credential
 from app.config import settings
 from app.utils.logger import log_warning, log_error
 
+
+def extract_status_code(error_str: str, default: int = 500) -> int:
+    """从错误信息中提取HTTP状态码"""
+    import re
+    patterns = [
+        r'API error \((\d{3})\)',  # Antigravity API error (401)
+        r'API Error (\d{3})',
+        r'"code":\s*(\d{3})',
+        r'status_code[=:]\s*(\d{3})',
+        r'HTTP (\d{3})',
+        r'Error (\d{3}):',
+    ]
+    for pattern in patterns:
+        match = re.search(pattern, error_str)
+        if match:
+            code = int(match.group(1))
+            if 400 <= code < 600:
+                return code
+    return default
+
 router = APIRouter(prefix="/antigravity", tags=["Antigravity反代"])
 
 
@@ -425,11 +445,13 @@ async def handle_chat_completions_antigravity(request: Request, user: User, db: 
 
     except Exception as e:
         # 记录错误日志
+        error_msg = str(e)
+        actual_status_code = extract_status_code(error_msg, 500)
         latency_ms = round((time.time() - start_time), 1)
-        await log_usage(db, user, credential, f"ag-{model}", "/v1/chat/completions", 500,
-                       error_message=str(e), latency_ms=latency_ms)
+        await log_usage(db, user, credential, f"ag-{model}", "/v1/chat/completions", actual_status_code,
+                       error_message=error_msg, latency_ms=latency_ms)
 
-        raise HTTPException(status_code=500, detail=f"Antigravity API错误: {str(e)}")
+        raise HTTPException(status_code=actual_status_code, detail=f"Antigravity API错误: {error_msg}")
 
 
 @router.post("/v1/chat/completions")
@@ -560,11 +582,13 @@ async def antigravity_chat_completions(request: Request, db: AsyncSession = Depe
 
     except Exception as e:
         # 记录错误日志
+        error_msg = str(e)
+        actual_status_code = extract_status_code(error_msg, 500)
         latency_ms = round((time.time() - start_time), 1)
-        await log_usage(db, user, credential, model, "/antigravity/v1/chat/completions", 500,
-                       error_message=str(e), latency_ms=latency_ms)
+        await log_usage(db, user, credential, model, "/antigravity/v1/chat/completions", actual_status_code,
+                       error_message=error_msg, latency_ms=latency_ms)
 
-        raise HTTPException(status_code=500, detail=f"Antigravity API错误: {str(e)}")
+        raise HTTPException(status_code=actual_status_code, detail=f"Antigravity API错误: {error_msg}")
 
 
 @router.get("/v1/models")
@@ -706,10 +730,12 @@ async def gemini_generate_content(
         return JSONResponse(content=gemini_response)
 
     except Exception as e:
+        error_msg = str(e)
+        actual_status_code = extract_status_code(error_msg, 500)
         latency_ms = round((time.time() - start_time), 1)
-        await log_usage(db, user, credential, model, f"/antigravity/v1/models/{model}:generateContent", 500,
-                       error_message=str(e), latency_ms=latency_ms)
-        raise HTTPException(status_code=500, detail=f"Antigravity API错误: {str(e)}")
+        await log_usage(db, user, credential, model, f"/antigravity/v1/models/{model}:generateContent", actual_status_code,
+                       error_message=error_msg, latency_ms=latency_ms)
+        raise HTTPException(status_code=actual_status_code, detail=f"Antigravity API错误: {error_msg}")
 
 
 @router.post("/v1beta/models/{model:path}:streamGenerateContent")
@@ -777,7 +803,9 @@ async def gemini_stream_generate_content(
         )
 
     except Exception as e:
+        error_msg = str(e)
+        actual_status_code = extract_status_code(error_msg, 500)
         latency_ms = round((time.time() - start_time), 1)
-        await log_usage(db, user, credential, model, f"/antigravity/v1/models/{model}:streamGenerateContent", 500,
-                       error_message=str(e), latency_ms=latency_ms)
-        raise HTTPException(status_code=500, detail=f"Antigravity API错误: {str(e)}")
+        await log_usage(db, user, credential, model, f"/antigravity/v1/models/{model}:streamGenerateContent", actual_status_code,
+                       error_message=error_msg, latency_ms=latency_ms)
+        raise HTTPException(status_code=actual_status_code, detail=f"Antigravity API错误: {error_msg}")

@@ -206,6 +206,14 @@ async def handle_openai_endpoint(request: Request, user: User, db: AsyncSession,
                                 stream_success = True  # 流式传输本身成功了
                     except Exception as e:
                         error_msg = str(e)
+                        # 尝试从 httpx 异常中获取状态码
+                        actual_status_code = 500
+                        if hasattr(e, 'response') and e.response is not None:
+                            actual_status_code = e.response.status_code
+                        else:
+                            # 从错误信息中提取状态码
+                            actual_status_code = extract_status_code(error_msg, 500)
+
                         # 只有在未记录成功日志时才记录错误日志
                         if not log_recorded and not stream_success:
                             try:
@@ -223,7 +231,7 @@ async def handle_openai_endpoint(request: Request, user: User, db: AsyncSession,
                                         user_id=user.id,
                                         model=model,
                                         endpoint="/v1/chat/completions",
-                                        status_code=500,
+                                        status_code=actual_status_code,
                                         latency_ms=round((time.time() - start_time), 1),
                                         error_message=error_msg[:2000],
                                         client_ip=client_ip,
@@ -317,6 +325,9 @@ async def handle_openai_endpoint(request: Request, user: User, db: AsyncSession,
 
         except Exception as e:
             last_error = f"{endpoint.name}: {str(e)}"
+            # 尝试从异常中提取状态码
+            actual_status_code = extract_status_code(str(e), 500)
+
             endpoint.failed_requests = (endpoint.failed_requests or 0) + 1
             endpoint.last_error = last_error[:500]
             await db.commit()
@@ -326,7 +337,7 @@ async def handle_openai_endpoint(request: Request, user: User, db: AsyncSession,
                 user_id=user.id,
                 model=model,
                 endpoint="/v1/chat/completions",
-                status_code=500,
+                status_code=actual_status_code,
                 latency_ms=round((time.time() - start_time), 1),
                 error_message=last_error[:2000],
                 client_ip=client_ip,
