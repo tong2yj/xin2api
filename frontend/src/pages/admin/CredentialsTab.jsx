@@ -1,15 +1,18 @@
 import {
   Check,
   Download,
-  ExternalLink,
   Eye,
   Upload,
   RefreshCw,
   Trash2,
   X,
+  Plus,
+  ChevronDown,
+  ChevronUp,
+  Edit,
+  Globe,
 } from 'lucide-react';
 import { useEffect, useState, useRef } from 'react';
-import { Link } from 'react-router-dom';
 import api from '../../api/index';
 import { Button } from '../../components/common/Button';
 import { Pagination } from '../../components/common/Pagination';
@@ -23,6 +26,20 @@ export default function CredentialsTab() {
   const [credentials, setCredentials] = useState([]);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
+
+  // OpenAI 端点状态
+  const [openaiEndpoints, setOpenaiEndpoints] = useState([]);
+  const [openaiExpanded, setOpenaiExpanded] = useState(true);
+  const [openaiLoading, setOpenaiLoading] = useState(false);
+  const [showOpenaiForm, setShowOpenaiForm] = useState(false);
+  const [editingEndpoint, setEditingEndpoint] = useState(null);
+  const [openaiFormData, setOpenaiFormData] = useState({
+    name: '',
+    api_key: '',
+    base_url: '',
+    is_active: true,
+    priority: 0
+  });
 
   // 导入凭证
   const fileInputRef = useRef(null);
@@ -57,7 +74,77 @@ export default function CredentialsTab() {
 
   useEffect(() => {
     fetchCredentials();
+    fetchOpenaiEndpoints();
   }, []);
+
+  const fetchOpenaiEndpoints = async () => {
+    setOpenaiLoading(true);
+    try {
+      const res = await api.get('/api/manage/openai-endpoints');
+      setOpenaiEndpoints(Array.isArray(res.data) ? res.data : []);
+    } catch (err) {
+      toast.error('获取 OpenAI 端点失败');
+      setOpenaiEndpoints([]);
+    } finally {
+      setOpenaiLoading(false);
+    }
+  };
+
+  const handleOpenaiSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      const data = new FormData();
+      data.append('name', openaiFormData.name);
+      data.append('api_key', openaiFormData.api_key);
+      data.append('base_url', openaiFormData.base_url);
+      data.append('is_active', openaiFormData.is_active);
+      data.append('priority', openaiFormData.priority);
+
+      if (editingEndpoint) {
+        await api.put(`/api/manage/openai-endpoints/${editingEndpoint}`, data);
+        toast.success('端点更新成功');
+      } else {
+        await api.post('/api/manage/openai-endpoints', data);
+        toast.success('端点添加成功');
+      }
+
+      setShowOpenaiForm(false);
+      setEditingEndpoint(null);
+      setOpenaiFormData({ name: '', api_key: '', base_url: '', is_active: true, priority: 0 });
+      fetchOpenaiEndpoints();
+    } catch (err) {
+      toast.error(err.response?.data?.detail || '操作失败');
+    }
+  };
+
+  const handleEditEndpoint = (endpoint) => {
+    setOpenaiFormData({
+      name: endpoint.name,
+      api_key: endpoint.api_key,
+      base_url: endpoint.base_url,
+      is_active: endpoint.is_active,
+      priority: endpoint.priority
+    });
+    setEditingEndpoint(endpoint.id);
+    setShowOpenaiForm(true);
+  };
+
+  const handleDeleteEndpoint = async (id) => {
+    if (!confirm('确定要删除这个端点吗？')) return;
+    try {
+      await api.delete(`/api/manage/openai-endpoints/${id}`);
+      toast.success('端点删除成功');
+      fetchOpenaiEndpoints();
+    } catch (err) {
+      toast.error('删除失败');
+    }
+  };
+
+  const cancelOpenaiForm = () => {
+    setShowOpenaiForm(false);
+    setEditingEndpoint(null);
+    setOpenaiFormData({ name: '', api_key: '', base_url: '', is_active: true, priority: 0 });
+  };
 
   // CD 实时倒计时
   useEffect(() => {
@@ -309,11 +396,15 @@ export default function CredentialsTab() {
 
           {/* 右侧：数据与认证组 - Mobile Scrollable */}
           <div className="flex items-center gap-2 overflow-x-auto pb-2 md:pb-0 hide-scrollbar w-full md:w-auto md:justify-end">
-            <Link to="/oauth">
-              <Button variant="primary" size="sm" icon={ExternalLink} className="whitespace-nowrap">
-                OAuth 认证
-              </Button>
-            </Link>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={() => setShowOpenaiForm(true)}
+              icon={Plus}
+              className="whitespace-nowrap"
+            >
+              添加 OpenAI 端点
+            </Button>
             <Button
               variant="blue"
               size="sm"
@@ -350,6 +441,118 @@ export default function CredentialsTab() {
             </Button>
           </div>
         )}
+      </div>
+
+      {/* OpenAI 端点区域 - 可折叠 */}
+      <div className="bg-dark-800/30 border border-white/5 rounded-xl overflow-hidden">
+        <div
+          className="flex items-center justify-between p-4 cursor-pointer hover:bg-white/5 transition-colors"
+          onClick={() => setOpenaiExpanded(!openaiExpanded)}
+        >
+          <div className="flex items-center gap-3">
+            <Globe className="text-blue-400" size={20} />
+            <h3 className="text-lg font-semibold text-dark-50">
+              OpenAI 端点配置
+            </h3>
+            <span className="text-sm text-dark-400">
+              ({openaiEndpoints.length} 个端点)
+            </span>
+          </div>
+          <button className="p-1 hover:bg-white/10 rounded-lg transition-colors">
+            {openaiExpanded ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
+          </button>
+        </div>
+
+        {openaiExpanded && (
+          <div className="p-4 pt-0 space-y-3">
+            {openaiLoading ? (
+              <div className="text-center py-8 text-dark-400">
+                <RefreshCw className="animate-spin inline mr-2" size={16} />
+                加载中...
+              </div>
+            ) : openaiEndpoints.length === 0 ? (
+              <div className="text-center py-8 text-dark-500">
+                暂无配置的 OpenAI 端点，点击右上角"添加 OpenAI 端点"按钮添加
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {openaiEndpoints.map((endpoint) => (
+                  <div
+                    key={endpoint.id}
+                    className="bg-dark-900/50 border border-dark-700 rounded-lg p-4 hover:border-dark-500 transition-colors group"
+                  >
+                    <div className="flex items-start justify-between mb-3">
+                      <div className="flex items-center gap-2">
+                        <h4 className="font-semibold text-white">{endpoint.name}</h4>
+                        {endpoint.is_active ? (
+                          <span className="px-2 py-0.5 bg-green-600/20 text-green-400 text-xs rounded border border-green-600/30">
+                            启用
+                          </span>
+                        ) : (
+                          <span className="px-2 py-0.5 bg-gray-600/20 text-gray-400 text-xs rounded border border-gray-600/30">
+                            禁用
+                          </span>
+                        )}
+                      </div>
+                      <span className="px-2 py-0.5 bg-blue-600/20 text-blue-400 text-xs rounded border border-blue-600/30">
+                        优先级: {endpoint.priority}
+                      </span>
+                    </div>
+
+                    <div className="space-y-1.5 text-sm mb-3">
+                      <div className="flex items-start gap-2">
+                        <span className="text-dark-500 whitespace-nowrap">Base URL:</span>
+                        <span className="font-mono text-dark-300 text-xs break-all">
+                          {endpoint.base_url}
+                        </span>
+                      </div>
+                      <div className="flex items-start gap-2">
+                        <span className="text-dark-500 whitespace-nowrap">API Key:</span>
+                        <span className="font-mono text-dark-300 text-xs">
+                          {endpoint.api_key.substring(0, 10)}...
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2 text-dark-400">
+                        <span className="text-dark-500">请求统计:</span>
+                        总计 <span className="text-white">{endpoint.total_requests || 0}</span> 次，
+                        失败 <span className="text-red-400">{endpoint.failed_requests || 0}</span> 次
+                      </div>
+                    </div>
+
+                    <div className="flex gap-2 pt-2 border-t border-dark-700">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleEditEndpoint(endpoint)}
+                        className="flex-1 !text-blue-400 hover:!bg-blue-500/10"
+                        icon={Edit}
+                      >
+                        编辑
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleDeleteEndpoint(endpoint.id)}
+                        className="flex-1 !text-red-400 hover:!bg-red-500/10"
+                        icon={Trash2}
+                      >
+                        删除
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Gemini 凭证区域标题 */}
+      <div className="flex items-center gap-3 pt-2">
+        <div className="flex items-center gap-2">
+          <span className="text-lg font-semibold text-dark-50">🔑 Gemini 凭证</span>
+          <span className="text-sm text-dark-400">({safeCredentials.length} 个凭证)</span>
+        </div>
       </div>
 
       {/* 导入凭证 */}
@@ -556,6 +759,111 @@ export default function CredentialsTab() {
                 </div>
               ) : null}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* OpenAI 端点添加/编辑弹窗 */}
+      {showOpenaiForm && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+          <div className="bg-dark-800 rounded-2xl w-full max-w-lg max-h-[80vh] overflow-auto">
+            <div className="flex items-center justify-between p-4 border-b border-dark-600">
+              <h3 className="text-lg font-semibold">
+                {editingEndpoint ? '编辑 OpenAI 端点' : '添加 OpenAI 端点'}
+              </h3>
+              <button
+                onClick={cancelOpenaiForm}
+                className="p-2 hover:bg-dark-600 rounded-lg"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            <form onSubmit={handleOpenaiSubmit} className="p-4 space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-2 text-dark-200">
+                  端点名称 <span className="text-red-400">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={openaiFormData.name}
+                  onChange={(e) => setOpenaiFormData({ ...openaiFormData, name: e.target.value })}
+                  placeholder="例如：DeepSeek、通义千问"
+                  className="w-full bg-dark-900 border border-dark-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-2 text-dark-200">
+                  API Key <span className="text-red-400">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={openaiFormData.api_key}
+                  onChange={(e) => setOpenaiFormData({ ...openaiFormData, api_key: e.target.value })}
+                  placeholder="sk-..."
+                  className="w-full bg-dark-900 border border-dark-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-2 text-dark-200">
+                  Base URL <span className="text-red-400">*</span>
+                </label>
+                <input
+                  type="url"
+                  value={openaiFormData.base_url}
+                  onChange={(e) => setOpenaiFormData({ ...openaiFormData, base_url: e.target.value })}
+                  placeholder="https://api.example.com/v1"
+                  className="w-full bg-dark-900 border border-dark-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm"
+                  required
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium mb-2 text-dark-200">优先级</label>
+                  <input
+                    type="number"
+                    value={openaiFormData.priority}
+                    onChange={(e) => setOpenaiFormData({ ...openaiFormData, priority: parseInt(e.target.value) })}
+                    className="w-full bg-dark-900 border border-dark-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  <p className="text-dark-500 text-xs mt-1">数字越大优先级越高</p>
+                </div>
+
+                <div className="flex items-center pt-6">
+                  <label className="flex items-center cursor-pointer text-dark-200 select-none">
+                    <input
+                      type="checkbox"
+                      checked={openaiFormData.is_active}
+                      onChange={(e) => setOpenaiFormData({ ...openaiFormData, is_active: e.target.checked })}
+                      className="mr-2 w-4 h-4 rounded border-dark-600 bg-dark-800 text-blue-600 focus:ring-blue-500"
+                    />
+                    <span>启用此端点</span>
+                  </label>
+                </div>
+              </div>
+
+              <div className="flex gap-3 pt-4 border-t border-dark-700">
+                <Button
+                  type="submit"
+                  variant="primary"
+                  className="flex-1"
+                >
+                  {editingEndpoint ? '保存修改' : '添加端点'}
+                </Button>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={cancelOpenaiForm}
+                  className="px-6"
+                >
+                  取消
+                </Button>
+              </div>
+            </form>
           </div>
         </div>
       )}
