@@ -508,6 +508,70 @@ async def chat_completions(
     if not messages:
         raise HTTPException(status_code=400, detail="messages不能为空")
 
+    # ========== gcli2api 桥接模式 ==========
+    if settings.enable_gcli2api_bridge:
+        from app.services.gcli2api_bridge import gcli2api_bridge
+
+        log_info("Bridge", f"[gcli2api] 转发请求: {model}, stream={stream}")
+
+        # 转发到 gcli2api
+        if stream:
+            # 流式响应
+            response = await gcli2api_bridge.forward_stream(
+                path="/v1/chat/completions",
+                json_data=body
+            )
+
+            # 记录使用日志（异步，不阻塞响应）
+            try:
+                log = UsageLog(
+                    user_id=user.id,
+                    model=model,
+                    endpoint="/v1/chat/completions (gcli2api)",
+                    status_code=200,
+                    latency_ms=round((time.time() - start_time) * 1000, 1),
+                    client_ip=client_ip,
+                    user_agent=user_agent
+                )
+                db.add(log)
+                await db.commit()
+            except Exception as log_err:
+                log_error("Bridge", f"日志记录失败: {log_err}")
+
+            return response
+        else:
+            # 非流式响应
+            result = await gcli2api_bridge.forward_request(
+                path="/v1/chat/completions",
+                method="POST",
+                json_data=body
+            )
+
+            # 记录使用日志
+            log = UsageLog(
+                user_id=user.id,
+                model=model,
+                endpoint="/v1/chat/completions (gcli2api)",
+                status_code=200,
+                latency_ms=round((time.time() - start_time) * 1000, 1),
+                client_ip=client_ip,
+                user_agent=user_agent
+            )
+            db.add(log)
+            await db.commit()
+
+            await notify_log_update({
+                "username": user.username,
+                "model": model,
+                "status_code": 200,
+                "latency_ms": round((time.time() - start_time) * 1000, 1),
+                "created_at": datetime.utcnow().isoformat()
+            })
+            await notify_stats_update()
+
+            return JSONResponse(content=result)
+    # ========== gcli2api 桥接模式结束 ==========
+
     # 检测模型前缀，判断使用哪个后端
     # ag- 前缀 = Antigravity 后端
     # gemini- 前缀 = 优先使用 OpenAI 端点，无配置时使用 Gemini CLI 后端
@@ -865,11 +929,39 @@ async def gemini_generate_content(
     contents = body.get("contents", [])
     if not contents:
         raise HTTPException(status_code=400, detail="contents不能为空")
-    
+
     # 清理模型名（移除 models/ 前缀）
     if model.startswith("models/"):
         model = model[7:]
-    
+
+    # ========== gcli2api 桥接模式 ==========
+    if settings.enable_gcli2api_bridge:
+        from app.services.gcli2api_bridge import gcli2api_bridge
+
+        log_info("Bridge", f"[gcli2api] Gemini generateContent: {model}")
+
+        result = await gcli2api_bridge.forward_request(
+            path=f"/v1beta/models/{model}:generateContent",
+            method="POST",
+            json_data=body
+        )
+
+        # 记录使用日志
+        log = UsageLog(
+            user_id=user.id,
+            model=model,
+            endpoint="/v1beta/models:generateContent (gcli2api)",
+            status_code=200,
+            latency_ms=round((time.time() - start_time) * 1000, 1),
+            client_ip=request.client.host if request.client else "unknown",
+            user_agent=request.headers.get("User-Agent", "")[:500]
+        )
+        db.add(log)
+        await db.commit()
+
+        return JSONResponse(content=result)
+    # ========== gcli2api 桥接模式结束 ==========
+
     # 检查用户是否参与大锅饭
     user_has_public = await CredentialPool.check_user_has_public_creds(db, user.id)
     
@@ -1019,6 +1111,44 @@ async def gemini_stream_generate_content(
     except Exception as e:
         log_error("Gemini CLI", f"streamGenerateContent 请求体读取失败: {e}")
         raise HTTPException(status_code=500, detail="请求处理失败")
+
+    contents = body.get("contents", [])
+    if not contents:
+        raise HTTPException(status_code=400, detail="contents不能为空")
+
+    # 清理模型名（移除 models/ 前缀）
+    if model.startswith("models/"):
+        model = model[7:]
+
+    # ========== gcli2api 桥接模式 ==========
+    if settings.enable_gcli2api_bridge:
+        from app.services.gcli2api_bridge import gcli2api_bridge
+
+        log_info("Bridge", f"[gcli2api] Gemini streamGenerateContent: {model}")
+
+        response = await gcli2api_bridge.forward_stream(
+            path=f"/v1beta/models/{model}:streamGenerateContent",
+            json_data=body
+        )
+
+        # 记录使用日志（异步，不阻塞响应）
+        try:
+            log = UsageLog(
+                user_id=user.id,
+                model=model,
+                endpoint="/v1beta/models:streamGenerateContent (gcli2api)",
+                status_code=200,
+                latency_ms=round((time.time() - start_time) * 1000, 1),
+                client_ip=request.client.host if request.client else "unknown",
+                user_agent=request.headers.get("User-Agent", "")[:500]
+            )
+            db.add(log)
+            await db.commit()
+        except Exception as log_err:
+            log_error("Bridge", f"日志记录失败: {log_err}")
+
+        return response
+    # ========== gcli2api 桥接模式结束 ==========
 
     contents = body.get("contents", [])
     if not contents:

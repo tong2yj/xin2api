@@ -86,6 +86,34 @@ async def get_auth_url(
 
 async def _get_auth_url_impl(get_all_projects: bool, user_id: int = None, for_antigravity: bool = False):
     """获取 OAuth 认证链接实现"""
+
+    # ========== gcli2api 桥接模式 ==========
+    if settings.enable_gcli2api_bridge:
+        from app.services.gcli2api_bridge import gcli2api_bridge
+
+        log_info("Bridge", f"[gcli2api] OAuth 获取认证链接, for_antigravity={for_antigravity}")
+
+        try:
+            result = await gcli2api_bridge.forward_request(
+                path="/auth/start",
+                method="POST",
+                json_data={
+                    "mode": "antigravity" if for_antigravity else "geminicli"
+                },
+                use_panel_password=True  # OAuth 接口使用面板密码
+            )
+
+            # gcli2api 返回格式: {"auth_url": "...", "callback_port": 11451}
+            return {
+                "auth_url": result.get("auth_url"),
+                "state": "gcli2api_bridge",  # 标记为桥接模式
+                "redirect_uri": f"http://localhost:{result.get('callback_port', 11451)}"
+            }
+        except Exception as e:
+            log_error("Bridge", f"获取OAuth链接失败: {e}")
+            raise HTTPException(status_code=500, detail=f"gcli2api OAuth 失败: {str(e)}")
+    # ========== gcli2api 桥接模式结束 ==========
+
     # 根据凭证类型选择不同的 OAuth 配置
     if for_antigravity:
         client_id = settings.antigravity_client_id
@@ -216,10 +244,45 @@ async def credential_from_callback_url(
 ):
     """从回调 URL 手动获取凭证 (适用于无法直接回调的场景)"""
     from urllib.parse import urlparse, parse_qs
-    
+
     import sys
     log_info("OAuth", f"收到回调URL: {data.callback_url}")
-    
+
+    # ========== gcli2api 桥接模式 ==========
+    if settings.enable_gcli2api_bridge:
+        from app.services.gcli2api_bridge import gcli2api_bridge
+
+        log_info("Bridge", f"[gcli2api] OAuth 处理回调URL, for_antigravity={data.for_antigravity}")
+
+        try:
+            result = await gcli2api_bridge.forward_request(
+                path="/auth/callback",
+                method="POST",
+                json_data={
+                    "callback_url": data.callback_url,
+                    "mode": "antigravity" if data.for_antigravity else "geminicli"
+                },
+                use_panel_password=True  # OAuth 接口使用面板密码
+            )
+
+            # gcli2api 返回格式: {"project_id": "...", "email": "...", "model_tier": "..."}
+            log_success("OAuth", f"[gcli2api] 凭证获取成功: {result.get('email')}, project: {result.get('project_id')}")
+
+            # 注意：gcli2api 已经保存了凭证，这里只需要记录用户贡献
+            # 如果需要在 CatieCli 也保存一份，可以在这里添加逻辑
+
+            return {
+                "message": "凭证已成功保存到 gcli2api",
+                "email": result.get("email"),
+                "project_id": result.get("project_id"),
+                "model_tier": result.get("model_tier"),
+                "credential_type": "oauth_antigravity" if data.for_antigravity else "gemini_cli"
+            }
+        except Exception as e:
+            log_error("Bridge", f"OAuth回调处理失败: {e}")
+            raise HTTPException(status_code=500, detail=f"gcli2api OAuth 回调失败: {str(e)}")
+    # ========== gcli2api 桥接模式结束 ==========
+
     try:
         parsed = urlparse(data.callback_url)
         params = parse_qs(parsed.query)

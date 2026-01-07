@@ -77,6 +77,12 @@ class Settings(BaseSettings):
     openai_api_key: str = ""  # 如果填写，则支持真正的 OpenAI API 反代
     openai_api_base: str = "https://api.openai.com"
 
+    # gcli2api 桥接配置
+    enable_gcli2api_bridge: bool = False  # 是否启用 gcli2api 桥接模式
+    gcli2api_base_url: str = "http://localhost:7861"  # gcli2api 服务地址
+    gcli2api_api_password: str = ""  # gcli2api 的 API_PASSWORD (用于聊天接口)
+    gcli2api_panel_password: str = ""  # gcli2api 的 PANEL_PASSWORD (用于管理接口)
+
     class Config:
         env_file = ".env"
         extra = "ignore"

@@ -452,6 +452,65 @@ async def handle_chat_completions_antigravity(request: Request, user: User, db: 
     """
     start_time = time.time()
 
+    # ========== gcli2api 桥接模式 ==========
+    if settings.enable_gcli2api_bridge:
+        from app.services.gcli2api_bridge import gcli2api_bridge
+        from app.utils.logger import log_info
+
+        model = body.get("model", "gemini-2.5-flash")
+        stream = body.get("stream", False)
+
+        log_info("Bridge", f"[gcli2api] Antigravity 转发请求: {model}, stream={stream}")
+
+        # 转发到 gcli2api
+        if stream:
+            # 流式响应
+            response = await gcli2api_bridge.forward_stream(
+                path="/antigravity/v1/chat/completions",
+                json_data=body
+            )
+
+            # 记录使用日志（异步，不阻塞响应）
+            try:
+                log = UsageLog(
+                    user_id=user.id,
+                    model=model,
+                    endpoint="/antigravity/v1/chat/completions (gcli2api)",
+                    status_code=200,
+                    latency_ms=round((time.time() - start_time) * 1000, 1),
+                    client_ip=request.client.host if request.client else "unknown",
+                    user_agent=request.headers.get("User-Agent", "")[:500]
+                )
+                db.add(log)
+                await db.commit()
+            except Exception as log_err:
+                log_error("Bridge", f"日志记录失败: {log_err}")
+
+            return response
+        else:
+            # 非流式响应
+            result = await gcli2api_bridge.forward_request(
+                path="/antigravity/v1/chat/completions",
+                method="POST",
+                json_data=body
+            )
+
+            # 记录使用日志
+            log = UsageLog(
+                user_id=user.id,
+                model=model,
+                endpoint="/antigravity/v1/chat/completions (gcli2api)",
+                status_code=200,
+                latency_ms=round((time.time() - start_time) * 1000, 1),
+                client_ip=request.client.host if request.client else "unknown",
+                user_agent=request.headers.get("User-Agent", "")[:500]
+            )
+            db.add(log)
+            await db.commit()
+
+            return JSONResponse(content=result)
+    # ========== gcli2api 桥接模式结束 ==========
+
     # 1. 获取 Antigravity 凭证
     result = await db.execute(
         select(Credential)
