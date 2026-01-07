@@ -160,6 +160,7 @@ async def handle_openai_endpoint(request: Request, user: User, db: AsyncSession,
                 async def stream_generator():
                     client = httpx.AsyncClient(timeout=60.0)
                     log_recorded = False  # 标记是否已记录日志，避免重复记录
+                    stream_completed = False  # 标记流式传输是否完成
                     try:
                         async with client.stream("POST", url, json=body, headers=headers) as response:
                             response.raise_for_status()
@@ -167,51 +168,67 @@ async def handle_openai_endpoint(request: Request, user: User, db: AsyncSession,
                             # 更新端点统计
                             endpoint.total_requests = (endpoint.total_requests or 0) + 1
                             endpoint.last_used_at = datetime.utcnow()
-                            await db.commit()
+                            try:
+                                await db.commit()
+                            except:
+                                pass  # 忽略数据库会话已关闭的错误
 
                             # 流式传输数据
                             async for chunk in response.aiter_bytes():
                                 yield chunk
 
-                            # 只有在成功完成流式传输后才记录成功日志
-                            async with async_session() as log_db:
-                                log = UsageLog(
-                                    user_id=user.id,
-                                    model=model,
-                                    endpoint="/v1/chat/completions",
-                                    status_code=200,
-                                    latency_ms=round((time.time() - start_time), 1),
-                                    client_ip=client_ip,
-                                    user_agent=user_agent
-                                )
-                                log_db.add(log)
-                                await log_db.commit()
-                            log_recorded = True
-                    except Exception as e:
-                        error_msg = str(e)
-                        # 记录错误
-                        endpoint.failed_requests = (endpoint.failed_requests or 0) + 1
-                        endpoint.last_error = error_msg[:500]
-                        await db.commit()
+                            stream_completed = True  # 标记流式传输完成
 
-                        # 只有在未记录成功日志的情况下才记录错误日志
-                        if not log_recorded:
-                            async with async_session() as log_db:
-                                log = UsageLog(
-                                    user_id=user.id,
-                                    model=model,
-                                    endpoint="/v1/chat/completions",
-                                    status_code=500,
-                                    latency_ms=round((time.time() - start_time), 1),
-                                    error_message=error_msg[:2000],
-                                    client_ip=client_ip,
-                                    user_agent=user_agent
-                                )
-                                log_db.add(log)
-                                await log_db.commit()
-                        raise
+                            # 只有在成功完成流式传输后才记录成功日志
+                            try:
+                                async with async_session() as log_db:
+                                    log = UsageLog(
+                                        user_id=user.id,
+                                        model=model,
+                                        endpoint="/v1/chat/completions",
+                                        status_code=200,
+                                        latency_ms=round((time.time() - start_time), 1),
+                                        client_ip=client_ip,
+                                        user_agent=user_agent
+                                    )
+                                    log_db.add(log)
+                                    await log_db.commit()
+                                log_recorded = True
+                            except Exception as log_err:
+                                log_error("OpenAI Stream", f"日志记录失败: {log_err}")
+                    except Exception as e:
+                        # 只有在流式传输未完成时才记录错误日志
+                        if not stream_completed and not log_recorded:
+                            error_msg = str(e)
+                            # 记录错误
+                            try:
+                                endpoint.failed_requests = (endpoint.failed_requests or 0) + 1
+                                endpoint.last_error = error_msg[:500]
+                                await db.commit()
+                            except:
+                                pass  # 忽略数据库会话已关闭的错误
+
+                            try:
+                                async with async_session() as log_db:
+                                    log = UsageLog(
+                                        user_id=user.id,
+                                        model=model,
+                                        endpoint="/v1/chat/completions",
+                                        status_code=500,
+                                        latency_ms=round((time.time() - start_time), 1),
+                                        error_message=error_msg[:2000],
+                                        client_ip=client_ip,
+                                        user_agent=user_agent
+                                    )
+                                    log_db.add(log)
+                                    await log_db.commit()
+                            except Exception as log_err:
+                                log_error("OpenAI Stream", f"错误日志记录失败: {log_err}")
                     finally:
-                        await client.aclose()
+                        try:
+                            await client.aclose()
+                        except:
+                            pass  # 忽略关闭客户端时的错误
 
                 return StreamingResponse(
                     stream_generator(),
@@ -864,10 +881,10 @@ async def gemini_generate_content(
     try:
         body = await request.json()
     except json.JSONDecodeError as e:
-        log_error("Gemini API", f"generateContent JSON 解析错误: {e}")
+        log_error("Gemini CLI", f"generateContent JSON 解析错误: {e}")
         raise HTTPException(status_code=400, detail=f"无效的JSON请求体: {str(e)}")
     except Exception as e:
-        log_error("Gemini API", f"generateContent 请求体读取失败: {e}")
+        log_error("Gemini CLI", f"generateContent 请求体读取失败: {e}")
         raise HTTPException(status_code=500, detail="请求处理失败")
 
     contents = body.get("contents", [])
@@ -907,7 +924,7 @@ async def gemini_generate_content(
         raise HTTPException(status_code=503, detail="凭证已失效")
     
     project_id = credential.project_id or ""
-    log_credential_usage("Gemini API", credential.email, model, project_id)
+    log_credential_usage("Gemini CLI", credential.email, model, project_id)
     
     # 记录日志
     async def log_usage(status_code: int = 200, cd_seconds: int = None, error_msg: str = None):
@@ -950,7 +967,7 @@ async def gemini_generate_content(
             # 当 topK 为 0 或无效值时，使用最大默认值 64；超过 64 时也锁定为 64
             if isinstance(gen_config, dict) and "topK" in gen_config:
                 if gen_config["topK"] is not None and (gen_config["topK"] < 1 or gen_config["topK"] > 64):
-                    log_warning("Gemini API", f"topK={gen_config['topK']} 超出有效范围(1-64)，已自动调整为 64")
+                    log_warning("Gemini CLI", f"topK={gen_config['topK']} 超出有效范围(1-64)，已自动调整为 64")
                     gen_config["topK"] = 64
             request_body["generationConfig"] = gen_config
         if "systemInstruction" in body:
@@ -971,7 +988,7 @@ async def gemini_generate_content(
             
             if response.status_code != 200:
                 error_text = response.text[:500]
-                log_error("Gemini API", f"错误 {response.status_code}: {error_text}")
+                log_error("Gemini CLI", f"错误 {response.status_code}: {error_text}")
                 # 401/403 错误自动禁用凭证
                 if response.status_code in [401, 403]:
                     await CredentialPool.handle_credential_failure(db, credential.id, f"API Error {response.status_code}: {error_text}")
@@ -1022,10 +1039,10 @@ async def gemini_stream_generate_content(
     try:
         body = await request.json()
     except json.JSONDecodeError as e:
-        log_error("Gemini API", f"streamGenerateContent JSON 解析错误: {e}")
+        log_error("Gemini CLI", f"streamGenerateContent JSON 解析错误: {e}")
         raise HTTPException(status_code=400, detail=f"无效的JSON请求体: {str(e)}")
     except Exception as e:
-        log_error("Gemini API", f"streamGenerateContent 请求体读取失败: {e}")
+        log_error("Gemini CLI", f"streamGenerateContent 请求体读取失败: {e}")
         raise HTTPException(status_code=500, detail="请求处理失败")
 
     contents = body.get("contents", [])
