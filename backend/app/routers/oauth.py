@@ -345,28 +345,32 @@ async def credential_from_callback_url(
             except Exception as e:
                 log_warning("OAuth", f"启用服务失败: {e}")
         
-        # 检查是否已存在相同邮箱的凭证（去重）
+        # 检查是否已存在相同邮箱+相同类型的凭证（去重）
+        # 注意：同一邮箱可以同时拥有 GeminiCLI 和 Antigravity 两种凭证
         from sqlalchemy import select
         from app.services.crypto import encrypt_credential
+
+        # 确定当前要创建的凭证类型
+        target_cred_type = "oauth_antigravity" if data.for_antigravity else "gemini_cli"
+
         existing_cred = await db.execute(
             select(Credential).where(
                 Credential.user_id == user.id,
-                Credential.email == email
+                Credential.email == email,
+                Credential.credential_type == target_cred_type  # 同时匹配凭证类型
             )
         )
         existing = existing_cred.scalar_one_or_none()
-        
+
         if existing:
-            # 更新现有凭证而不是新增
+            # 更新现有凭证而不是新增（只更新相同类型的凭证）
             existing.api_key = encrypt_credential(access_token)
             existing.refresh_token = encrypt_credential(refresh_token)
             existing.project_id = project_id
-            # 更新凭证类型
-            existing.credential_type = "oauth_antigravity" if data.for_antigravity else "gemini_cli"
             existing.name = f"Antigravity - {email}" if data.for_antigravity else f"GeminiCli - {email}"
             credential = existing
             is_new_credential = False
-            log_info("Credential", f"更新现有凭证: {email} (类型: {existing.credential_type})")
+            log_info("Credential", f"更新现有凭证: {email} (类型: {target_cred_type})")
         else:
             # 创建新凭证
             cred_type = "oauth_antigravity" if data.for_antigravity else "gemini_cli"

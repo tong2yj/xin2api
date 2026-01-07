@@ -543,6 +543,7 @@ async def list_my_credentials(user: User = Depends(get_current_user), db: AsyncS
             "id": c.id,
             "name": c.name,
             "email": c.email,
+            "credential_type": c.credential_type,
             "is_public": c.is_public,
             "is_active": c.is_active,
             "model_tier": c.model_tier or "2.5",

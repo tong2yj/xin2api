@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, update, delete, or_
 from pydantic import BaseModel
@@ -202,38 +202,50 @@ async def list_credentials(
     """获取所有凭证"""
     from datetime import datetime, timedelta
     from app.config import settings
-    
-    credentials = await CredentialPool.get_all_credentials(db)
+
+    # 关联查询用户名
+    result = await db.execute(
+        select(Credential, User.username)
+        .outerjoin(User, Credential.user_id == User.id)
+        .order_by(Credential.created_at.desc())
+    )
+    rows = result.all()
     now = datetime.utcnow()
-    
+
     def get_cd_remaining(last_used, cd_seconds):
         if not last_used or cd_seconds <= 0:
             return 0
         cd_end = last_used + timedelta(seconds=cd_seconds)
         remaining = (cd_end - now).total_seconds()
         return max(0, int(remaining))
-    
+
+    credentials_list = []
+    for row in rows:
+        c = row[0]  # Credential
+        owner_name = row[1]  # username (可能为 None)
+        credentials_list.append({
+            "id": c.id,
+            "name": c.name,
+            "email": c.email,
+            "credential_type": c.credential_type,
+            "owner_name": owner_name,
+            "api_key": c.api_key[:20] + "..." if c.api_key and len(c.api_key) > 20 else (c.api_key or ""),
+            "model_tier": c.model_tier,
+            "is_active": c.is_active,
+            "is_public": c.is_public,
+            "total_requests": c.total_requests or 0,
+            "failed_requests": c.failed_requests or 0,
+            "last_used_at": (c.last_used_at.isoformat() + "Z") if c.last_used_at else None,
+            "last_error": c.last_error,
+            "created_at": (c.created_at.isoformat() + "Z") if c.created_at else None,
+            "cd_flash": get_cd_remaining(c.last_used_flash, settings.cd_flash),
+            "cd_pro": get_cd_remaining(c.last_used_pro, settings.cd_pro),
+            "cd_30": get_cd_remaining(c.last_used_30, settings.cd_30),
+        })
+
     return {
-        "credentials": [
-            {
-                "id": c.id,
-                "name": c.name,
-                "email": c.email,
-                "api_key": c.api_key[:20] + "..." if c.api_key and len(c.api_key) > 20 else (c.api_key or ""),
-                "model_tier": c.model_tier,
-                "is_active": c.is_active,
-                "total_requests": c.total_requests or 0,
-                "failed_requests": c.failed_requests or 0,
-                "last_used_at": (c.last_used_at.isoformat() + "Z") if c.last_used_at else None,
-                "last_error": c.last_error,
-                "created_at": (c.created_at.isoformat() + "Z") if c.created_at else None,
-                "cd_flash": get_cd_remaining(c.last_used_flash, settings.cd_flash),
-                "cd_pro": get_cd_remaining(c.last_used_pro, settings.cd_pro),
-                "cd_30": get_cd_remaining(c.last_used_30, settings.cd_30),
-            }
-            for c in credentials
-        ],
-        "total": len(credentials)
+        "credentials": credentials_list,
+        "total": len(credentials_list)
     }
 
 
@@ -371,8 +383,10 @@ async def export_all_credentials(
                 "email": getattr(c, 'email', None),
                 "name": getattr(c, 'name', None),
                 "username": username,
+                "credential_type": getattr(c, 'credential_type', None),
                 "project_id": getattr(c, 'project_id', None),
                 "model_tier": getattr(c, 'model_tier', None),
+                "account_type": getattr(c, 'account_type', None),
                 "is_active": getattr(c, 'is_active', None),
                 "is_public": getattr(c, 'is_public', None),
                 "user_id": getattr(c, 'user_id', None),
@@ -397,6 +411,89 @@ async def export_all_credentials(
             })
     
     return export_data
+
+
+@router.post("/credentials/import")
+async def import_credentials(
+    request: Request,
+    admin: User = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db)
+):
+    """批量导入凭证（从导出的JSON格式导入）"""
+    from app.services.crypto import encrypt_credential
+
+    try:
+        data = await request.json()
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"无效的JSON格式: {str(e)}")
+
+    if not isinstance(data, list):
+        raise HTTPException(status_code=400, detail="数据格式错误，需要数组格式")
+
+    imported = 0
+    skipped = 0
+    errors = []
+
+    for idx, item in enumerate(data):
+        try:
+            # 跳过有错误的条目
+            if "error" in item:
+                skipped += 1
+                continue
+
+            # 必须有 refresh_token 才能导入
+            refresh_token = item.get("refresh_token")
+            if not refresh_token:
+                skipped += 1
+                continue
+
+            email = item.get("email") or item.get("name") or f"imported_{idx}"
+            # 读取凭证类型，默认为 gemini_cli
+            cred_type = item.get("credential_type") or "gemini_cli"
+
+            # 检查是否已存在（通过邮箱+类型去重，允许同邮箱不同类型共存）
+            if email:
+                existing = await db.execute(
+                    select(Credential).where(
+                        Credential.email == email,
+                        Credential.credential_type == cred_type
+                    )
+                )
+                if existing.scalar_one_or_none():
+                    skipped += 1
+                    continue
+
+            # 创建新凭证
+            new_cred = Credential(
+                name=item.get("name") or email,
+                email=email,
+                api_key=encrypt_credential(item.get("access_token") or ""),
+                refresh_token=encrypt_credential(refresh_token),
+                client_id=encrypt_credential(item.get("client_id") or "") if item.get("client_id") else None,
+                client_secret=encrypt_credential(item.get("client_secret") or "") if item.get("client_secret") else None,
+                project_id=item.get("project_id"),
+                model_tier=item.get("model_tier") or "2.5",
+                account_type=item.get("account_type") or "free",
+                credential_type=cred_type,
+                is_active=item.get("is_active", True),
+                is_public=item.get("is_public", False),
+                user_id=admin.id  # 导入的凭证归管理员所有
+            )
+            db.add(new_cred)
+            imported += 1
+
+        except Exception as e:
+            errors.append(f"第{idx+1}条: {str(e)[:50]}")
+
+    await db.commit()
+    await notify_credential_update()
+
+    return {
+        "message": f"导入完成: 成功{imported}个, 跳过{skipped}个",
+        "imported": imported,
+        "skipped": skipped,
+        "errors": errors[:10]  # 最多返回10条错误
+    }
 
 
 @router.get("/credential-duplicates")
