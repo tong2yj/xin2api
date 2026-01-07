@@ -45,9 +45,10 @@ export default function CredentialsTab() {
     setLoading(true);
     try {
       const res = await api.get('/api/admin/credentials');
-      setCredentials(res.data.credentials);
+      setCredentials(Array.isArray(res.data?.credentials) ? res.data.credentials : []);
     } catch (err) {
       toast.error('获取凭证列表失败');
+      setCredentials([]);
     } finally {
       setLoading(false);
     }
@@ -59,25 +60,29 @@ export default function CredentialsTab() {
 
   // CD 实时倒计时
   useEffect(() => {
-    const hasCD = credentials.some((c) => c.cd_flash > 0 || c.cd_pro > 0 || c.cd_30 > 0);
+    if (!Array.isArray(credentials)) return;
+    
+    const hasCD = credentials.some((c) => (c.cd_flash || 0) > 0 || (c.cd_pro || 0) > 0 || (c.cd_30 || 0) > 0);
     if (!hasCD) return;
 
     const timer = setInterval(() => {
-      setCredentials((prev) =>
-        prev.map((c) => ({
+      setCredentials((prev) => {
+        if (!Array.isArray(prev)) return [];
+        return prev.map((c) => ({
           ...c,
           cd_flash: Math.max(0, (c.cd_flash || 0) - 1),
           cd_pro: Math.max(0, (c.cd_pro || 0) - 1),
           cd_30: Math.max(0, (c.cd_30 || 0) - 1),
-        }))
-      );
+        }));
+      });
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [credentials.length]);
+  }, [credentials?.length]);
 
-  const totalPages = Math.ceil(credentials.length / CREDS_PER_PAGE);
-  const paginatedCreds = credentials.slice(
+  const safeCredentials = Array.isArray(credentials) ? credentials : [];
+  const totalPages = Math.ceil(safeCredentials.length / CREDS_PER_PAGE);
+  const paginatedCreds = safeCredentials.slice(
     (page - 1) * CREDS_PER_PAGE,
     page * CREDS_PER_PAGE
   );
