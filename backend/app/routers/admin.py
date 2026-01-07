@@ -796,10 +796,12 @@ async def get_logs(
                 "model": log.UsageLog.model,
                 "endpoint": log.UsageLog.endpoint,
                 "status_code": log.UsageLog.status_code,
+                "status": "success" if log.UsageLog.status_code == 200 else "error",
                 "error_type": log.UsageLog.error_type,
                 "error_type_name": get_error_type_name(log.UsageLog.error_type) if log.UsageLog.error_type else None,
                 "error_code": log.UsageLog.error_code,
                 "credential_email": log.UsageLog.credential_email,
+                "credential_name": log.UsageLog.credential_email,  # 兼容前端
                 "latency_ms": log.UsageLog.latency_ms,
                 "cd_seconds": log.UsageLog.cd_seconds,
                 "created_at": log.UsageLog.created_at.isoformat() + "Z"
@@ -842,6 +844,7 @@ async def get_log_detail(
         "model": log.model,
         "endpoint": log.endpoint,
         "status_code": log.status_code,
+        "status": "success" if log.status_code == 200 else "error",
         "error_type": log.error_type,
         "error_type_name": get_error_type_name(log.error_type) if log.error_type else None,
         "error_code": log.error_code,
