@@ -720,6 +720,25 @@ async def get_stats(
     }
 
 
+def get_api_source(log: UsageLog):
+    """根据日志信息判断 API 调用来源"""
+    model = log.model or ""
+    endpoint = log.endpoint or ""
+    credential_id = log.credential_id
+
+    # Antigravity: 模型以 ag- 开头或端点包含 antigravity
+    if model.startswith("ag-") or "antigravity" in endpoint.lower():
+        return "Antigravity"
+    # GeminiCLI: 有凭证ID且模型是 gemini 系列
+    elif credential_id and ("gemini" in model.lower() or model.startswith("gemini")):
+        return "GeminiCLI"
+    # OpenAI: 无凭证ID 或其他情况
+    elif not credential_id:
+        return "OpenAI"
+    else:
+        return "GeminiCLI"
+
+
 @router.get("/logs")
 async def get_logs(
     limit: int = 100,
@@ -788,24 +807,6 @@ async def get_logs(
     result = await db.execute(query)
     logs = result.all()
     
-    def get_api_source(log):
-        """根据日志信息判断 API 调用来源"""
-        model = log.UsageLog.model or ""
-        endpoint = log.UsageLog.endpoint or ""
-        credential_id = log.UsageLog.credential_id
-
-        # Antigravity: 模型以 ag- 开头或端点包含 antigravity
-        if model.startswith("ag-") or "antigravity" in endpoint.lower():
-            return "Antigravity"
-        # GeminiCLI: 有凭证ID且模型是 gemini 系列
-        elif credential_id and ("gemini" in model.lower() or model.startswith("gemini")):
-            return "GeminiCLI"
-        # OpenAI: 无凭证ID 或其他情况
-        elif not credential_id:
-            return "OpenAI"
-        else:
-            return "GeminiCLI"
-
     return {
         "logs": [
             {
@@ -818,19 +819,17 @@ async def get_logs(
                 "error_type": log.UsageLog.error_type,
                 "error_type_name": get_error_type_name(log.UsageLog.error_type) if log.UsageLog.error_type else None,
                 "error_code": log.UsageLog.error_code,
-                "api_source": get_api_source(log),
+                "api_source": get_api_source(log.UsageLog),
                 "credential_email": log.UsageLog.credential_email,
                 "credential_name": log.UsageLog.credential_email,  # 兼容前端
-                "latency_ms": log.UsageLog.latency_ms,
-                "cd_seconds": log.UsageLog.cd_seconds,
+                "latency_ms": log.UsageLog.latency_ms / 1000 if log.UsageLog.latency_ms else 0,
                 "created_at": log.UsageLog.created_at.isoformat() + "Z"
             }
             for log in logs
         ],
         "total": total,
-        "page": page,
-        "limit": limit,
-        "pages": (total + limit - 1) // limit if limit > 0 else 1
+        "pages": (total + limit - 1) // limit,
+        "page": page
     }
 
 
@@ -860,6 +859,7 @@ async def get_log_detail(
         "username": username,
         "credential_id": log.credential_id,
         "credential_email": cred_email or log.credential_email,
+        "api_source": get_api_source(log),
         "model": log.model,
         "endpoint": log.endpoint,
         "status_code": log.status_code,
@@ -871,7 +871,7 @@ async def get_log_detail(
         "request_body": log.request_body,
         "client_ip": log.client_ip,
         "user_agent": log.user_agent,
-        "latency_ms": log.latency_ms,
+        "latency_ms": log.latency_ms / 1000 if log.latency_ms else 0,
         "cd_seconds": log.cd_seconds,
         "created_at": log.created_at.isoformat() + "Z"
     }

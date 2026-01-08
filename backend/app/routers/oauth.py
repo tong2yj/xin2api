@@ -256,26 +256,36 @@ async def credential_from_callback_url(
 
         try:
             result = await gcli2api_bridge.forward_request(
-                path="/auth/callback",
+                path="/auth/callback-url",  # 使用 callback-url 接口而不是 callback
                 method="POST",
                 json_data={
                     "callback_url": data.callback_url,
-                    "mode": "antigravity" if data.for_antigravity else "geminicli"
+                    "use_antigravity": data.for_antigravity  # 参数名是 use_antigravity 而不是 mode
                 },
                 use_panel_password=True  # OAuth 接口使用面板密码
             )
 
-            # gcli2api 返回格式: {"project_id": "...", "email": "...", "model_tier": "..."}
-            log_success("OAuth", f"[gcli2api] 凭证获取成功: {result.get('email')}, project: {result.get('project_id')}")
+            # gcli2api 返回格式: {"success": true, "credentials": {...}, "file_path": "...", "auto_detected_project": true}
+            if not result.get("success"):
+                error_msg = result.get("error", "未知错误")
+                log_error("Bridge", f"[gcli2api] 凭证获取失败: {error_msg}")
+                raise HTTPException(status_code=400, detail=error_msg)
+
+            credentials = result.get("credentials", {})
+            project_id = credentials.get("project_id", "")
+            # gcli2api 的 credentials 中没有 email 字段，需要从 token 中获取或设置默认值
+            email = "gcli2api-user"
+
+            log_success("OAuth", f"[gcli2api] 凭证获取成功: project={project_id}")
 
             # 注意：gcli2api 已经保存了凭证，这里只需要记录用户贡献
             # 如果需要在 CatieCli 也保存一份，可以在这里添加逻辑
 
             return {
                 "message": "凭证已成功保存到 gcli2api",
-                "email": result.get("email"),
-                "project_id": result.get("project_id"),
-                "model_tier": result.get("model_tier"),
+                "email": email,
+                "project_id": project_id,
+                "model_tier": "2.5",  # gcli2api 不返回 model_tier，默认设置为 2.5
                 "credential_type": "oauth_antigravity" if data.for_antigravity else "gemini_cli"
             }
         except Exception as e:
