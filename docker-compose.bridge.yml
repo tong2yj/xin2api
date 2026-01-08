@@ -1,0 +1,85 @@
+version: '3.8'
+
+services:
+  # gcli2api 服务
+  gcli2api:
+    build:
+      context: ../gcli2api-master
+      dockerfile: Dockerfile
+    container_name: gcli2api-service
+    ports:
+      - "7861:7861"
+    environment:
+      - HOST=0.0.0.0
+      - PORT=7861
+      - API_PASSWORD=catie_gcli2api_secure_password_2026
+      - PANEL_PASSWORD=catie_gcli2api_panel_password_2026
+      - CREDENTIALS_DIR=/app/creds
+      - LOG_LEVEL=info
+      - LOG_FILE=/app/log.txt
+      - OAUTH_CALLBACK_PORT=11451
+      - RETRY_429_ENABLED=true
+      - RETRY_429_MAX_RETRIES=5
+      - RETRY_429_INTERVAL=1
+    volumes:
+      - gcli2api-creds:/app/creds
+      - gcli2api-logs:/app
+    networks:
+      - catie-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:7861/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # CatieCli 后端服务
+  catiecli-backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: catiecli-backend
+    ports:
+      - "5001:5001"
+    environment:
+      - PORT=5001
+      - DATABASE_URL=sqlite+aiosqlite:///./data/gemini_proxy.db
+      - SECRET_KEY=${SECRET_KEY:-your-super-secret-key-change-this}
+      - ADMIN_USERNAME=${ADMIN_USERNAME:-admin}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-admin123}
+      # gcli2api 桥接配置
+      - ENABLE_GCLI2API_BRIDGE=true
+      - GCLI2API_BASE_URL=http://gcli2api:7861
+      - GCLI2API_API_PASSWORD=catie_gcli2api_secure_password_2026
+      - GCLI2API_PANEL_PASSWORD=catie_gcli2api_panel_password_2026
+    volumes:
+      - catiecli-data:/app/data
+    networks:
+      - catie-network
+    depends_on:
+      gcli2api:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # CatieCli 前端服务
+  catiecli-frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: catiecli-frontend
+    ports:
+      - "3000:80"
+    networks:
+      - catie-network
+    depends_on:
+      - catiecli-backend
+    restart: unless-stopped
+
+networks:
+  catie-network:
+    driver: bridge
+
+volumes:
+  gcli2api-creds:
+  gcli2api-logs:
+  catiecli-data:

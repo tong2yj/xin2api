@@ -620,7 +620,20 @@ export default function CredentialsTab() {
                       : 'API Key'}
                   </span>
                 </td>
-                <td className="text-gray-400 text-sm">{c.owner_name || '-'}</td>
+                <td className="text-gray-400 text-sm">
+                  {c.owner_name || '-'}
+                  {/* 桥接凭证标记 */}
+                  {c.source === 'gcli2api' && (
+                    <span className="ml-2 text-xs px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-400 border border-blue-500/30">
+                      GCLI桥接
+                    </span>
+                  )}
+                  {c.source === 'antigravity' && (
+                    <span className="ml-2 text-xs px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-400 border border-purple-500/30">
+                      AG桥接
+                    </span>
+                  )}
+                </td>
                 <td>
                   <div className="flex items-center gap-1">
                     {c.is_active ? (

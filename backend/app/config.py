@@ -36,27 +36,15 @@ class Settings(BaseSettings):
 
     # 凭证奖励配额（上传凭证后获得的额外配额次数）
     credential_reward_quota: int = 1000  # 上传凭证奖励的配额次数
-    
-    # 速率限制 (RPM - requests per minute)
-    base_rpm: int = 5  # 未上传凭证的用户
-    contributor_rpm: int = 10  # 上传凭证的用户
-    
-    # 错误重试
-    error_retry_count: int = 3  # 报错时切换凭证重试次数
-    
+
     # CD 机制（冷却时间，单位：秒）
+    # 注意：凭证由 gcli2api 管理，CD 机制已不再使用，保留仅为兼容性
     cd_flash: int = 0   # Flash 模型组 CD（0=无CD）
     cd_pro: int = 4     # Pro 模型组 CD（默认4秒）
     cd_30: int = 4      # 3.0 模型组 CD（默认4秒）
 
     # 注册
     allow_registration: bool = True
-
-    # 强制捐赠：上传凭证时强制设为公开
-    force_donate: bool = False
-
-    # 锁定捐赠：不允许取消捐赠（除非凭证失效）
-    lock_donate: bool = False
     
     # 公告
     announcement_enabled: bool = False
@@ -95,11 +83,6 @@ PERSISTENT_CONFIG_KEYS = [
     "allow_registration",
     "default_daily_quota",
     "credential_reward_quota",
-    "base_rpm",
-    "contributor_rpm",
-    "force_donate",
-    "lock_donate",
-    "error_retry_count",
     "cd_flash",
     "cd_pro",
     "cd_30",

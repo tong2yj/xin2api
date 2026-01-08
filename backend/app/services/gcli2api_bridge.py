@@ -198,5 +198,203 @@ class Gcli2apiBridge:
         )
 
 
+    async def get_gcli_credentials(self) -> list[Dict[str, Any]]:
+        """
+        获取 GCLI 凭证列表
+
+        Returns:
+            凭证列表，每个凭证包含:
+            - filename: 文件名
+            - disabled: 是否禁用
+            - error_codes: 错误代码列表
+            - user_email: 用户邮箱
+            - last_success: 最后成功时间
+            - model_cooldowns: 模型冷却时间
+        """
+        try:
+            result = await self.forward_request(
+                path='/creds/status',
+                method='GET',
+                use_panel_password=True
+            )
+
+            if result is None:
+                return []
+
+            # gcli2api 返回的是字典格式 {filename: state}
+            credentials = []
+            if isinstance(result, dict):
+                for filename, state in result.items():
+                    credentials.append({
+                        'filename': filename,
+                        'disabled': state.get('disabled', False),
+                        'error_codes': state.get('error_codes', []),
+                        'user_email': state.get('user_email'),
+                        'last_success': state.get('last_success'),
+                        'model_cooldowns': state.get('model_cooldowns', {}),
+                    })
+
+            logger.info(f"获取到 {len(credentials)} 个 GCLI 凭证")
+            return credentials
+
+        except Exception as e:
+            logger.error(f"获取 GCLI 凭证失败: {e}")
+            return []
+
+    async def get_antigravity_credentials(self) -> list[Dict[str, Any]]:
+        """
+        获取 Antigravity 凭证列表
+
+        Returns:
+            凭证列表，格式同 get_gcli_credentials
+        """
+        try:
+            result = await self.forward_request(
+                path='/antigravity/creds/status',
+                method='GET',
+                use_panel_password=True
+            )
+
+            if result is None:
+                return []
+
+            credentials = []
+            if isinstance(result, dict):
+                for filename, state in result.items():
+                    credentials.append({
+                        'filename': filename,
+                        'disabled': state.get('disabled', False),
+                        'error_codes': state.get('error_codes', []),
+                        'user_email': state.get('user_email'),
+                        'last_success': state.get('last_success'),
+                        'model_cooldowns': state.get('model_cooldowns', {}),
+                    })
+
+            logger.info(f"获取到 {len(credentials)} 个 Antigravity 凭证")
+            return credentials
+
+        except Exception as e:
+            logger.error(f"获取 Antigravity 凭证失败: {e}")
+            return []
+
+    async def delete_gcli_credential(self, filename: str) -> bool:
+        """
+        删除 GCLI 凭证
+
+        Args:
+            filename: 凭证文件名
+
+        Returns:
+            是否删除成功
+        """
+        try:
+            await self.forward_request(
+                path='/creds/action',
+                method='POST',
+                json_data={'filename': filename, 'action': 'delete'},
+                use_panel_password=True
+            )
+            logger.info(f"成功删除 GCLI 凭证: {filename}")
+            return True
+
+        except Exception as e:
+            logger.error(f"删除 GCLI 凭证失败 {filename}: {e}")
+            return False
+
+    async def delete_antigravity_credential(self, filename: str) -> bool:
+        """
+        删除 Antigravity 凭证
+
+        Args:
+            filename: 凭证文件名
+
+        Returns:
+            是否删除成功
+        """
+        try:
+            await self.forward_request(
+                path='/antigravity/creds/action',
+                method='POST',
+                json_data={'filename': filename, 'action': 'delete'},
+                use_panel_password=True
+            )
+            logger.info(f"成功删除 Antigravity 凭证: {filename}")
+            return True
+
+        except Exception as e:
+            logger.error(f"删除 Antigravity 凭证失败 {filename}: {e}")
+            return False
+
+    async def enable_gcli_credential(self, filename: str) -> bool:
+        """启用 GCLI 凭证"""
+        try:
+            await self.forward_request(
+                path='/creds/action',
+                method='POST',
+                json_data={'filename': filename, 'action': 'enable'},
+                use_panel_password=True
+            )
+            return True
+        except Exception as e:
+            logger.error(f"启用 GCLI 凭证失败 {filename}: {e}")
+            return False
+
+    async def disable_gcli_credential(self, filename: str) -> bool:
+        """禁用 GCLI 凭证"""
+        try:
+            await self.forward_request(
+                path='/creds/action',
+                method='POST',
+                json_data={'filename': filename, 'action': 'disable'},
+                use_panel_password=True
+            )
+            return True
+        except Exception as e:
+            logger.error(f"禁用 GCLI 凭证失败 {filename}: {e}")
+            return False
+
+    async def enable_antigravity_credential(self, filename: str) -> bool:
+        """启用 Antigravity 凭证"""
+        try:
+            await self.forward_request(
+                path='/antigravity/creds/action',
+                method='POST',
+                json_data={'filename': filename, 'action': 'enable'},
+                use_panel_password=True
+            )
+            return True
+        except Exception as e:
+            logger.error(f"启用 Antigravity 凭证失败 {filename}: {e}")
+            return False
+
+    async def disable_antigravity_credential(self, filename: str) -> bool:
+        """禁用 Antigravity 凭证"""
+        try:
+            await self.forward_request(
+                path='/antigravity/creds/action',
+                method='POST',
+                json_data={'filename': filename, 'action': 'disable'},
+                use_panel_password=True
+            )
+            return True
+        except Exception as e:
+            logger.error(f"禁用 Antigravity 凭证失败 {filename}: {e}")
+            return False
+
+    async def health_check(self) -> bool:
+        """
+        健康检查
+
+        Returns:
+            服务是否可用
+        """
+        try:
+            async with httpx.AsyncClient(timeout=5.0) as client:
+                response = await client.get(f"{self.base_url}/")
+                return response.status_code == 200
+        except Exception:
+            return False
+
+
 # 全局实例
 gcli2api_bridge = Gcli2apiBridge()

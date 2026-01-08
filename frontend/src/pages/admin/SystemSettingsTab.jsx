@@ -41,14 +41,9 @@ export default function SystemSettingsTab() {
       formData.append('allow_registration', config.allow_registration);
       formData.append('default_daily_quota', config.default_daily_quota ?? 100);
       formData.append('credential_reward_quota', config.credential_reward_quota ?? 1500);
-      formData.append('base_rpm', config.base_rpm);
-      formData.append('contributor_rpm', config.contributor_rpm);
-      formData.append('error_retry_count', config.error_retry_count);
       formData.append('cd_flash', config.cd_flash ?? 0);
       formData.append('cd_pro', config.cd_pro ?? 4);
       formData.append('cd_30', config.cd_30 ?? 4);
-      formData.append('force_donate', config.force_donate);
-      formData.append('lock_donate', config.lock_donate);
       formData.append('announcement_enabled', config.announcement_enabled);
       formData.append('announcement_title', config.announcement_title || '');
       formData.append('announcement_content', config.announcement_content || '');
@@ -167,64 +162,6 @@ export default function SystemSettingsTab() {
             </p>
           </div>
 
-          {/* 强制公开 & 锁定公开 */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="bg-dark-800/50 rounded-xl p-4 border border-white/5">
-              <SettingToggle
-                label="强制公开 🤝"
-                desc="上传凭证时强制设为公开"
-                checked={config?.force_donate ?? false}
-                onChange={(v) => setConfig({ ...config, force_donate: v })}
-              />
-            </div>
-            <div className="bg-dark-800/50 rounded-xl p-4 border border-white/5">
-              <SettingToggle
-                label="锁定公开 🔒"
-                desc="有效凭证不允许取消公开"
-                checked={config?.lock_donate ?? false}
-                onChange={(v) => setConfig({ ...config, lock_donate: v })}
-              />
-            </div>
-          </div>
-
-          {/* 速率限制 */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <SettingInput
-              label="基础速率限制 ⏱️"
-              desc="未上传凭证用户的每分钟请求数"
-              value={config?.base_rpm ?? ''}
-              onChange={(v) => setConfig({ ...config, base_rpm: v === '' ? '' : parseInt(v) })}
-              type="number"
-              suffix="次/分钟"
-            />
-            <SettingInput
-              label="上传者速率限制 🚀"
-              desc="上传凭证用户的每分钟请求数"
-              value={config?.contributor_rpm ?? ''}
-              onChange={(v) => setConfig({ ...config, contributor_rpm: v === '' ? '' : parseInt(v) })}
-              type="number"
-              suffix="次/分钟"
-            />
-          </div>
-
-          {/* 错误重试 */}
-          <div>
-            <h3 className="font-semibold text-dark-50 mb-1">报错切换凭证重试次数 🔄</h3>
-            <p className="text-dark-400 text-sm mb-3">遇到 API 错误时自动切换凭证重试的次数</p>
-            <div className="flex items-center gap-3">
-              <input
-                type="number"
-                min="0"
-                max="10"
-                value={config?.error_retry_count ?? ''}
-                onChange={(e) => setConfig({ ...config, error_retry_count: e.target.value === '' ? '' : parseInt(e.target.value) })}
-                className="w-32 bg-dark-950 border border-dark-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
-              />
-              <span className="text-sm text-dark-500">次</span>
-            </div>
-            <p className="text-dark-500 text-xs mt-2">设为 0 则不重试</p>
-          </div>
-
           {/* CD 机制 */}
           <div className="bg-dark-800/30 rounded-xl p-5 border border-white/5">
             <h3 className="font-semibold text-dark-50 mb-2">凭证冷却时间 (CD) ⏱️</h3>
@@ -234,6 +171,9 @@ export default function SystemSettingsTab() {
               <CDInput label="Pro CD" value={config?.cd_pro} onChange={v => setConfig({...config, cd_pro: v})} color="orange" />
               <CDInput label="3.0 CD" value={config?.cd_30} onChange={v => setConfig({...config, cd_30: v})} color="pink" />
             </div>
+            <p className="text-amber-400/70 text-xs mt-3 flex items-center gap-1">
+              <span className="text-amber-500">ℹ️</span> 注意：凭证由 gcli2api 管理，CD 机制已不再使用，保留仅为兼容性
+            </p>
           </div>
 
           {/* 公告功能 */}

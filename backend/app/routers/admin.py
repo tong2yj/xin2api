@@ -199,11 +199,12 @@ async def list_credentials(
     admin: User = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db)
 ):
-    """获取所有凭证"""
+    """获取所有凭证（包含桥接凭证）"""
     from datetime import datetime, timedelta
     from app.config import settings
+    from app.services.gcli2api_bridge import gcli2api_bridge
 
-    # 关联查询用户名
+    # 1. 获取本地凭证
     result = await db.execute(
         select(Credential, User.username)
         .outerjoin(User, Credential.user_id == User.id)
@@ -220,15 +221,18 @@ async def list_credentials(
         return max(0, int(remaining))
 
     credentials_list = []
+
+    # 本地凭证
     for row in rows:
         c = row[0]  # Credential
         owner_name = row[1]  # username (可能为 None)
         credentials_list.append({
-            "id": c.id,
+            "id": str(c.id),  # 转为字符串以统一格式
+            "source": "local",  # 标记来源
             "name": c.name,
             "email": c.email,
             "credential_type": c.credential_type,
-            "owner_name": owner_name,
+            "owner_name": owner_name or "未知",
             "api_key": c.api_key[:20] + "..." if c.api_key and len(c.api_key) > 20 else (c.api_key or ""),
             "model_tier": c.model_tier,
             "is_active": c.is_active,
@@ -242,6 +246,65 @@ async def list_credentials(
             "cd_pro": get_cd_remaining(c.last_used_pro, settings.cd_pro),
             "cd_30": get_cd_remaining(c.last_used_30, settings.cd_30),
         })
+
+    # 2. 获取 gcli2api 桥接凭证（如果启用）
+    if settings.enable_gcli2api_bridge:
+        try:
+            # GCLI 凭证
+            gcli_creds = await gcli2api_bridge.get_gcli_credentials()
+            for cred in gcli_creds:
+                credentials_list.append({
+                    "id": f"gcli_{cred['filename']}",  # 特殊ID标记
+                    "source": "gcli2api",
+                    "name": cred.get("user_email") or cred["filename"],
+                    "email": cred.get("user_email") or cred["filename"],
+                    "credential_type": "gemini_cli",
+                    "owner_name": "管理员",  # 默认管理员
+                    "api_key": "***",  # 不显示密钥
+                    "model_tier": "2.5",  # gcli2api 凭证默认 2.5
+                    "is_active": not cred.get("disabled", False),
+                    "is_public": False,
+                    "total_requests": 0,  # gcli2api 不提供此数据
+                    "failed_requests": len(cred.get("error_codes", [])),
+                    "last_used_at": None,
+                    "last_error": ", ".join(str(code) for code in cred.get("error_codes", [])[:3]) if cred.get("error_codes") else None,
+                    "created_at": None,
+                    "cd_flash": 0,
+                    "cd_pro": 0,
+                    "cd_30": 0,
+                    "bridge_filename": cred["filename"],  # 保存原始文件名用于删除
+                })
+
+            # Antigravity 凭证
+            ag_creds = await gcli2api_bridge.get_antigravity_credentials()
+            for cred in ag_creds:
+                credentials_list.append({
+                    "id": f"ag_{cred['filename']}",
+                    "source": "antigravity",
+                    "name": cred.get("user_email") or cred["filename"],
+                    "email": cred.get("user_email") or cred["filename"],
+                    "credential_type": "antigravity",
+                    "owner_name": "管理员",
+                    "api_key": "***",
+                    "model_tier": "3",  # Antigravity 支持 3.0
+                    "is_active": not cred.get("disabled", False),
+                    "is_public": False,
+                    "total_requests": 0,
+                    "failed_requests": len(cred.get("error_codes", [])),
+                    "last_used_at": None,
+                    "last_error": ", ".join(str(code) for code in cred.get("error_codes", [])[:3]) if cred.get("error_codes") else None,
+                    "created_at": None,
+                    "cd_flash": 0,
+                    "cd_pro": 0,
+                    "cd_30": 0,
+                    "bridge_filename": cred["filename"],
+                })
+
+            log_warning("Bridge", f"成功获取桥接凭证: GCLI={len(gcli_creds)}, Antigravity={len(ag_creds)}")
+
+        except Exception as e:
+            log_error("Bridge", f"获取桥接凭证失败: {e}")
+            # 不影响本地凭证的返回
 
     return {
         "credentials": credentials_list,
@@ -288,19 +351,48 @@ async def update_credential(
 
 @router.delete("/credentials/{credential_id}")
 async def delete_credential(
-    credential_id: int,
+    credential_id: str,  # 改为 str 以支持桥接凭证ID
     admin: User = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db)
 ):
-    """删除凭证"""
-    result = await db.execute(select(Credential).where(Credential.id == credential_id))
+    """删除凭证（支持桥接凭证）"""
+    from app.services.gcli2api_bridge import gcli2api_bridge
+    from app.config import settings
+
+    # 判断是否为桥接凭证
+    if credential_id.startswith("gcli_") or credential_id.startswith("ag_"):
+        if not settings.enable_gcli2api_bridge:
+            raise HTTPException(status_code=400, detail="桥接功能未启用")
+
+        # 提取文件名
+        filename = credential_id.split("_", 1)[1]
+
+        # 删除桥接凭证
+        if credential_id.startswith("gcli_"):
+            success = await gcli2api_bridge.delete_gcli_credential(filename)
+        else:  # ag_
+            success = await gcli2api_bridge.delete_antigravity_credential(filename)
+
+        if success:
+            await notify_credential_update()
+            return {"message": f"删除成功（桥接凭证: {filename}）"}
+        else:
+            raise HTTPException(status_code=500, detail="删除桥接凭证失败")
+
+    # 本地凭证删除逻辑
+    try:
+        credential_id_int = int(credential_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="无效的凭证ID")
+
+    result = await db.execute(select(Credential).where(Credential.id == credential_id_int))
     credential = result.scalar_one_or_none()
     if not credential:
         raise HTTPException(status_code=404, detail="凭证不存在")
-    
+
     # 先解除使用记录的外键引用，避免外键约束导致删除失败
     await db.execute(
-        update(UsageLog).where(UsageLog.credential_id == credential_id).values(credential_id=None)
+        update(UsageLog).where(UsageLog.credential_id == credential_id_int).values(credential_id=None)
     )
     await db.delete(credential)
     await db.commit()

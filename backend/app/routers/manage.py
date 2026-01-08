@@ -866,15 +866,10 @@ async def get_config(user: User = Depends(get_current_admin)):
         "allow_registration": settings.allow_registration,
         "default_daily_quota": settings.default_daily_quota,
         "credential_reward_quota": settings.credential_reward_quota,
-        "base_rpm": settings.base_rpm,
-        "contributor_rpm": settings.contributor_rpm,
-        "error_retry_count": settings.error_retry_count,
         "cd_flash": settings.cd_flash,
         "cd_pro": settings.cd_pro,
         "cd_30": settings.cd_30,
         "admin_username": settings.admin_username,
-        "force_donate": settings.force_donate,
-        "lock_donate": settings.lock_donate,
         "announcement_enabled": settings.announcement_enabled,
         "announcement_title": settings.announcement_title,
         "announcement_content": settings.announcement_content,
@@ -901,10 +896,7 @@ async def get_public_config():
     """获取公开配置（普通用户可访问）"""
     from app.config import settings
     return {
-        "force_donate": settings.force_donate,
-        "lock_donate": settings.lock_donate,
-        "base_rpm": settings.base_rpm,
-        "contributor_rpm": settings.contributor_rpm,
+        "allow_registration": settings.allow_registration,
     }
 
 
@@ -913,14 +905,9 @@ async def update_config(
     allow_registration: Optional[bool] = Form(None),
     default_daily_quota: Optional[int] = Form(None),
     credential_reward_quota: Optional[int] = Form(None),
-    base_rpm: Optional[int] = Form(None),
-    contributor_rpm: Optional[int] = Form(None),
-    error_retry_count: Optional[int] = Form(None),
     cd_flash: Optional[int] = Form(None),
     cd_pro: Optional[int] = Form(None),
     cd_30: Optional[int] = Form(None),
-    force_donate: Optional[bool] = Form(None),
-    lock_donate: Optional[bool] = Form(None),
     announcement_enabled: Optional[bool] = Form(None),
     announcement_title: Optional[str] = Form(None),
     announcement_content: Optional[str] = Form(None),
@@ -943,18 +930,6 @@ async def update_config(
         settings.credential_reward_quota = credential_reward_quota
         await save_config_to_db("credential_reward_quota", credential_reward_quota)
         updated["credential_reward_quota"] = credential_reward_quota
-    if base_rpm is not None:
-        settings.base_rpm = base_rpm
-        await save_config_to_db("base_rpm", base_rpm)
-        updated["base_rpm"] = base_rpm
-    if contributor_rpm is not None:
-        settings.contributor_rpm = contributor_rpm
-        await save_config_to_db("contributor_rpm", contributor_rpm)
-        updated["contributor_rpm"] = contributor_rpm
-    if error_retry_count is not None:
-        settings.error_retry_count = error_retry_count
-        await save_config_to_db("error_retry_count", error_retry_count)
-        updated["error_retry_count"] = error_retry_count
     if cd_flash is not None:
         settings.cd_flash = cd_flash
         await save_config_to_db("cd_flash", cd_flash)
@@ -967,14 +942,6 @@ async def update_config(
         settings.cd_30 = cd_30
         await save_config_to_db("cd_30", cd_30)
         updated["cd_30"] = cd_30
-    if force_donate is not None:
-        settings.force_donate = force_donate
-        await save_config_to_db("force_donate", force_donate)
-        updated["force_donate"] = force_donate
-    if lock_donate is not None:
-        settings.lock_donate = lock_donate
-        await save_config_to_db("lock_donate", lock_donate)
-        updated["lock_donate"] = lock_donate
 
     # 公告配置
     if announcement_enabled is not None:
