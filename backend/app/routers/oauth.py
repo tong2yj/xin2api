@@ -293,15 +293,71 @@ async def credential_from_callback_url(
 
             log_success("OAuth", f"[gcli2api] 凭证获取成功: project={project_id}")
 
-            # 注意：gcli2api 已经保存了凭证，这里只需要记录用户贡献
-            # 如果需要在 CatieCli 也保存一份，可以在这里添加逻辑
+            # 在 CatieCli 数据库中也保存一份凭证记录（用于前端显示）
+            from sqlalchemy import select
+            from app.services.crypto import encrypt_credential
+
+            # 确定凭证类型
+            target_cred_type = "oauth_antigravity" if data.for_antigravity else "gemini_cli"
+            cred_name = f"Antigravity - {project_id}" if data.for_antigravity else f"GeminiCli - {project_id}"
+
+            # 检查是否已存在相同 project_id 的凭证
+            existing_cred = await db.execute(
+                select(Credential).where(
+                    Credential.user_id == user.id,
+                    Credential.project_id == project_id,
+                    Credential.credential_type == target_cred_type
+                )
+            )
+            existing = existing_cred.scalar_one_or_none()
+
+            if existing:
+                # 更新现有凭证
+                existing.name = cred_name
+                existing.is_active = True
+                credential = existing
+                is_new_credential = False
+                log_info("Credential", f"更新现有凭证: {project_id} (类型: {target_cred_type})")
+            else:
+                # 创建新凭证记录（只保存 project_id，实际凭证在 gcli2api）
+                credential = Credential(
+                    user_id=user.id,
+                    name=cred_name,
+                    api_key=encrypt_credential("gcli2api_managed"),  # 标记为 gcli2api 管理
+                    refresh_token=encrypt_credential("gcli2api_managed"),
+                    project_id=project_id,
+                    credential_type=target_cred_type,
+                    email=email,
+                    is_public=data.is_public,
+                    is_active=True
+                )
+                is_new_credential = True
+                db.add(credential)
+                log_info("Credential", f"创建新凭证记录: {project_id} (类型: {target_cred_type})")
+
+            # 奖励用户额度（只有新凭证、捐赠到公共池才奖励）
+            reward_quota = 0
+            if is_new_credential and data.is_public:
+                reward_quota = settings.credential_reward_quota
+                user.daily_quota += reward_quota
+                log_info("Credential", f"用户 {user.username} 获得 {reward_quota} 次数奖励")
+
+            await db.commit()
+
+            # 如果捐赠，通知更新
+            if data.is_public:
+                from app.services.websocket import notify_credential_update
+                await notify_credential_update()
 
             return {
-                "message": "凭证已成功保存到 gcli2api",
+                "message": "凭证已成功保存到 gcli2api" + (f"，奖励 +{reward_quota} 额度" if reward_quota else ""),
                 "email": email,
                 "project_id": project_id,
                 "model_tier": "2.5",  # gcli2api 不返回 model_tier，默认设置为 2.5
-                "credential_type": "oauth_antigravity" if data.for_antigravity else "gemini_cli"
+                "credential_type": target_cred_type,
+                "credential_id": credential.id,
+                "reward_quota": reward_quota,
+                "is_valid": True
             }
         except Exception as e:
             log_error("Bridge", f"OAuth回调处理失败: {e}")
