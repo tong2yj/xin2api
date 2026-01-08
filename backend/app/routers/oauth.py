@@ -268,13 +268,25 @@ async def credential_from_callback_url(
             # 记录完整的返回结果用于调试
             log_info("Bridge", f"[gcli2api] 返回结果: {result}")
 
-            # gcli2api 返回格式: {"success": true, "credentials": {...}, "file_path": "...", "auto_detected_project": true}
-            if not result.get("success"):
+            # gcli2api 返回格式兼容处理
+            # 格式1: {"success": true, "credentials": {...}, "file_path": "..."}
+            # 格式2: {"credentials": {...}, "file_path": "..."} (直接返回凭证，表示成功)
+
+            # 检查是否成功
+            has_success_field = "success" in result
+            is_success = result.get("success", True) if has_success_field else ("credentials" in result)
+
+            if not is_success:
                 error_msg = result.get("error", f"未知错误，完整响应: {result}")
                 log_error("Bridge", f"[gcli2api] 凭证获取失败: {error_msg}")
                 raise HTTPException(status_code=400, detail=error_msg)
 
             credentials = result.get("credentials", {})
+            if not credentials:
+                error_msg = f"响应中缺少 credentials 字段，完整响应: {result}"
+                log_error("Bridge", f"[gcli2api] {error_msg}")
+                raise HTTPException(status_code=400, detail=error_msg)
+
             project_id = credentials.get("project_id", "")
             # gcli2api 的 credentials 中没有 email 字段，需要从 token 中获取或设置默认值
             email = "gcli2api-user"
