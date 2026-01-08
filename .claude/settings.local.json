@@ -44,7 +44,9 @@
       "Bash(find:*)",
       "Bash(git remote set-url:*)",
       "Bash(docker-compose -f /d/cc/CatieCli-main/docker-compose.yml ps)",
-      "Bash(docker-compose exec:*)"
+      "Bash(docker-compose exec:*)",
+      "Bash(test -f:*)",
+      "Bash(docker-compose -f \"D:\\\\cc\\\\gcli2api-master\\\\docker-compose.yml\" logs --tail=50)"
     ]
   }
 }

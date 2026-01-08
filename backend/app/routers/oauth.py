@@ -98,15 +98,15 @@ async def _get_auth_url_impl(get_all_projects: bool, user_id: int = None, for_an
                 path="/auth/start",
                 method="POST",
                 json_data={
-                    "mode": "antigravity" if for_antigravity else "geminicli"
+                    "use_antigravity": for_antigravity  # 使用布尔值而不是 mode 字符串
                 },
                 use_panel_password=True  # OAuth 接口使用面板密码
             )
 
-            # gcli2api 返回格式: {"auth_url": "...", "callback_port": 11451}
+            # gcli2api 返回格式: {"auth_url": "...", "state": "...", "callback_port": 11451}
             return {
                 "auth_url": result.get("auth_url"),
-                "state": "gcli2api_bridge",  # 标记为桥接模式
+                "state": result.get("state", "gcli2api_bridge"),  # 使用 gcli2api 返回的 state
                 "redirect_uri": f"http://localhost:{result.get('callback_port', 11451)}"
             }
         except Exception as e:
@@ -265,9 +265,12 @@ async def credential_from_callback_url(
                 use_panel_password=True  # OAuth 接口使用面板密码
             )
 
+            # 记录完整的返回结果用于调试
+            log_info("Bridge", f"[gcli2api] 返回结果: {result}")
+
             # gcli2api 返回格式: {"success": true, "credentials": {...}, "file_path": "...", "auto_detected_project": true}
             if not result.get("success"):
-                error_msg = result.get("error", "未知错误")
+                error_msg = result.get("error", f"未知错误，完整响应: {result}")
                 log_error("Bridge", f"[gcli2api] 凭证获取失败: {error_msg}")
                 raise HTTPException(status_code=400, detail=error_msg)
 
