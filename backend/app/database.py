@@ -60,12 +60,8 @@ async def init_db():
             # SQLite 迁移
             migrations = [
                 "ALTER TABLE usage_logs ADD COLUMN credential_id INTEGER REFERENCES credentials(id)",
-                "ALTER TABLE users ADD COLUMN bonus_quota INTEGER DEFAULT 0",
                 "ALTER TABLE credentials ADD COLUMN client_id TEXT",
                 "ALTER TABLE credentials ADD COLUMN client_secret TEXT",
-                "ALTER TABLE users ADD COLUMN quota_flash INTEGER DEFAULT 0",
-                "ALTER TABLE users ADD COLUMN quota_25pro INTEGER DEFAULT 0",
-                "ALTER TABLE users ADD COLUMN quota_30pro INTEGER DEFAULT 0",
                 "ALTER TABLE credentials ADD COLUMN account_type VARCHAR(20) DEFAULT 'free'",
                 "ALTER TABLE credentials ADD COLUMN last_used_flash DATETIME",
                 "ALTER TABLE credentials ADD COLUMN last_used_pro DATETIME",
@@ -86,12 +82,8 @@ async def init_db():
             # PostgreSQL 迁移（使用 IF NOT EXISTS 语法）
             migrations = [
                 "ALTER TABLE usage_logs ADD COLUMN IF NOT EXISTS credential_id INTEGER REFERENCES credentials(id)",
-                "ALTER TABLE users ADD COLUMN IF NOT EXISTS bonus_quota INTEGER DEFAULT 0",
                 "ALTER TABLE credentials ADD COLUMN IF NOT EXISTS client_id TEXT",
                 "ALTER TABLE credentials ADD COLUMN IF NOT EXISTS client_secret TEXT",
-                "ALTER TABLE users ADD COLUMN IF NOT EXISTS quota_flash INTEGER DEFAULT 0",
-                "ALTER TABLE users ADD COLUMN IF NOT EXISTS quota_25pro INTEGER DEFAULT 0",
-                "ALTER TABLE users ADD COLUMN IF NOT EXISTS quota_30pro INTEGER DEFAULT 0",
                 "ALTER TABLE credentials ADD COLUMN IF NOT EXISTS account_type VARCHAR(20) DEFAULT 'free'",
                 "ALTER TABLE credentials ADD COLUMN IF NOT EXISTS last_used_flash TIMESTAMP",
                 "ALTER TABLE credentials ADD COLUMN IF NOT EXISTS last_used_pro TIMESTAMP",

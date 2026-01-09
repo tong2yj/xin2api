@@ -37,6 +37,10 @@ class Settings(BaseSettings):
     # 凭证奖励配额（上传凭证后获得的额外配额次数）
     credential_reward_quota: int = 1000  # 上传凭证奖励的配额次数
 
+    # 凭证池模式配置
+    credential_pool_mode: str = "full_shared"  # 凭证池模式: private, tier3_shared, full_shared
+    lock_donate: bool = False  # 是否锁定捐赠（有效凭证不能取消捐赠）
+
     # CD 机制（冷却时间，单位：秒）
     # 注意：凭证由 gcli2api 管理，CD 机制已不再使用，保留仅为兼容性
     cd_flash: int = 0   # Flash 模型组 CD（0=无CD）
