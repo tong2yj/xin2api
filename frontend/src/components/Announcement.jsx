@@ -1,6 +1,6 @@
 import { AlertTriangle, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import api from '../api'
+import api from '../api/index'
 
 export default function Announcement() {
   const [announcement, setAnnouncement] = useState(null)

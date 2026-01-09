@@ -1,7 +1,7 @@
 import { Cat, Eye, EyeOff } from 'lucide-react';
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import api from '../api';
+import api from '../api/index';
 import { useAuth } from '../App';
 import { Button } from '../components/common/Button';
 import { Card } from '../components/common/Card';

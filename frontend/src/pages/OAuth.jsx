@@ -7,7 +7,7 @@ import {
   X
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import api from '../api';
+import api from '../api/index';
 import { useAuth } from '../App';
 import { Button } from '../components/common/Button';
 import { Card } from '../components/common/Card';
