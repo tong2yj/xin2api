@@ -864,11 +864,9 @@ async def get_config(user: User = Depends(get_current_admin)):
     from app.config import settings
     return {
         "allow_registration": settings.allow_registration,
+        "require_approval": settings.require_approval,
         "default_daily_quota": settings.default_daily_quota,
         "credential_reward_quota": settings.credential_reward_quota,
-        "cd_flash": settings.cd_flash,
-        "cd_pro": settings.cd_pro,
-        "cd_30": settings.cd_30,
         "admin_username": settings.admin_username,
         "announcement_enabled": settings.announcement_enabled,
         "announcement_title": settings.announcement_title,
@@ -903,11 +901,9 @@ async def get_public_config():
 @router.post("/config")
 async def update_config(
     allow_registration: Optional[bool] = Form(None),
+    require_approval: Optional[bool] = Form(None),
     default_daily_quota: Optional[int] = Form(None),
     credential_reward_quota: Optional[int] = Form(None),
-    cd_flash: Optional[int] = Form(None),
-    cd_pro: Optional[int] = Form(None),
-    cd_30: Optional[int] = Form(None),
     announcement_enabled: Optional[bool] = Form(None),
     announcement_title: Optional[str] = Form(None),
     announcement_content: Optional[str] = Form(None),
@@ -922,6 +918,10 @@ async def update_config(
         settings.allow_registration = allow_registration
         await save_config_to_db("allow_registration", allow_registration)
         updated["allow_registration"] = allow_registration
+    if require_approval is not None:
+        settings.require_approval = require_approval
+        await save_config_to_db("require_approval", require_approval)
+        updated["require_approval"] = require_approval
     if default_daily_quota is not None:
         settings.default_daily_quota = default_daily_quota
         await save_config_to_db("default_daily_quota", default_daily_quota)
@@ -930,18 +930,6 @@ async def update_config(
         settings.credential_reward_quota = credential_reward_quota
         await save_config_to_db("credential_reward_quota", credential_reward_quota)
         updated["credential_reward_quota"] = credential_reward_quota
-    if cd_flash is not None:
-        settings.cd_flash = cd_flash
-        await save_config_to_db("cd_flash", cd_flash)
-        updated["cd_flash"] = cd_flash
-    if cd_pro is not None:
-        settings.cd_pro = cd_pro
-        await save_config_to_db("cd_pro", cd_pro)
-        updated["cd_pro"] = cd_pro
-    if cd_30 is not None:
-        settings.cd_30 = cd_30
-        await save_config_to_db("cd_30", cd_30)
-        updated["cd_30"] = cd_30
 
     # 公告配置
     if announcement_enabled is not None:

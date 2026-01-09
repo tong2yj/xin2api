@@ -9,7 +9,7 @@ from app.database import init_db, async_session
 from app.models.user import User
 from app.services.auth import get_password_hash
 from app.config import settings, load_config_from_db
-from app.routers import auth, proxy, admin, oauth, ws, manage, antigravity
+from app.routers import auth, proxy, admin, oauth, ws, manage
 from app.routers.test import router as test_router
 from app.middleware.url_normalize import URLNormalizeMiddleware
 from sqlalchemy import select
@@ -97,7 +97,6 @@ app.include_router(admin.router)
 app.include_router(oauth.router)
 app.include_router(ws.router)
 app.include_router(manage.router)
-app.include_router(antigravity.router)  # Antigravity 反代路由
 app.include_router(test_router)  # 测试接口（用于模拟报错场景）
 
 
@@ -110,19 +109,16 @@ async def health():
 async def public_stats():
     """公共统计信息（无需登录）"""
     from sqlalchemy import select, func
-    from app.models.user import User, Credential, UsageLog
+    from app.models.user import User, UsageLog
     from datetime import date
-    
+
     async with async_session() as db:
         user_count = (await db.execute(select(func.count(User.id)))).scalar() or 0
-        active_credentials = (await db.execute(
-            select(func.count(Credential.id)).where(Credential.is_active == True)
-        )).scalar() or 0
         today = date.today()
         today_requests = (await db.execute(
             select(func.count(UsageLog.id)).where(func.date(UsageLog.created_at) == today)
         )).scalar() or 0
-        
+
         # 成功/失败统计
         today_success = (await db.execute(
             select(func.count(UsageLog.id))
@@ -130,10 +126,9 @@ async def public_stats():
             .where(UsageLog.status_code == 200)
         )).scalar() or 0
         today_failed = today_requests - today_success
-        
+
         return {
             "user_count": user_count,
-            "active_credentials": active_credentials,
             "today_requests": today_requests,
             "today_success": today_success,
             "today_failed": today_failed

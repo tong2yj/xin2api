@@ -11,6 +11,7 @@ export default function SystemSettingsTab() {
   const [config, setConfig] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [batchSaving, setBatchSaving] = useState(false);  // 批量设置配额的独立 loading 状态
   const [message, setMessage] = useState(null);
 
   // 批量设置配额状态
@@ -38,13 +39,11 @@ export default function SystemSettingsTab() {
     setMessage(null);
     try {
       const formData = new FormData();
-      formData.append('allow_registration', config.allow_registration);
+      formData.append('allow_registration', config.allow_registration ?? true);
+      formData.append('require_approval', config.require_approval ?? false);
       formData.append('default_daily_quota', config.default_daily_quota ?? 100);
       formData.append('credential_reward_quota', config.credential_reward_quota ?? 1500);
-      formData.append('cd_flash', config.cd_flash ?? 0);
-      formData.append('cd_pro', config.cd_pro ?? 4);
-      formData.append('cd_30', config.cd_30 ?? 4);
-      formData.append('announcement_enabled', config.announcement_enabled);
+      formData.append('announcement_enabled', config.announcement_enabled ?? false);
       formData.append('announcement_title', config.announcement_title || '');
       formData.append('announcement_content', config.announcement_content || '');
       formData.append('announcement_read_seconds', config.announcement_read_seconds || 5);
@@ -66,7 +65,7 @@ export default function SystemSettingsTab() {
       title: '批量设置配额',
       message: `确定将所有用户配额设为 ${batchQuota} 次/天？此操作将覆盖所有用户的现有配额设置。`,
       onConfirm: async () => {
-        setSaving(true); 
+        setBatchSaving(true);  // 使用独立的 loading 状态
         try {
           await api.post('/api/admin/settings/batch-quota', { quota: parseInt(batchQuota) });
           toast.success('批量更新成功');
@@ -74,7 +73,7 @@ export default function SystemSettingsTab() {
         } catch (err) {
           toast.error('批量更新失败: ' + (err.response?.data?.detail || err.message));
         } finally {
-          setSaving(false);
+          setBatchSaving(false);
         }
       },
     });
@@ -109,6 +108,14 @@ export default function SystemSettingsTab() {
             desc="关闭后新用户无法注册账号"
             checked={config?.allow_registration || false}
             onChange={(v) => setConfig({ ...config, allow_registration: v })}
+          />
+
+          {/* 用户审核 */}
+          <SettingToggle
+            label="新用户需要审核"
+            desc="开启后新注册用户需要管理员审核通过才能使用服务"
+            checked={config?.require_approval || false}
+            onChange={(v) => setConfig({ ...config, require_approval: v })}
           />
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -149,8 +156,8 @@ export default function SystemSettingsTab() {
               <span className="text-dark-400 text-sm">次/天</span>
               <Button
                 onClick={applyQuotaToAll}
-                disabled={!batchQuota}
-                loading={saving}
+                disabled={!batchQuota || batchSaving}
+                loading={batchSaving}
                 variant="secondary"
                 size="sm"
               >
@@ -159,20 +166,6 @@ export default function SystemSettingsTab() {
             </div>
             <p className="text-amber-400/70 text-xs mt-2 flex items-center gap-1">
               <span className="text-amber-500">⚠️</span> 此操作将覆盖所有用户的现有配额设置
-            </p>
-          </div>
-
-          {/* CD 机制 */}
-          <div className="bg-dark-800/30 rounded-xl p-5 border border-white/5">
-            <h3 className="font-semibold text-dark-50 mb-2">凭证冷却时间 (CD) ⏱️</h3>
-            <p className="text-dark-400 text-sm mb-4">按模型组设置凭证冷却时间（0=无CD）</p>
-            <div className="grid grid-cols-3 gap-4">
-              <CDInput label="Flash CD" value={config?.cd_flash} onChange={v => setConfig({...config, cd_flash: v})} color="cyan" />
-              <CDInput label="Pro CD" value={config?.cd_pro} onChange={v => setConfig({...config, cd_pro: v})} color="orange" />
-              <CDInput label="3.0 CD" value={config?.cd_30} onChange={v => setConfig({...config, cd_30: v})} color="pink" />
-            </div>
-            <p className="text-amber-400/70 text-xs mt-3 flex items-center gap-1">
-              <span className="text-amber-500">ℹ️</span> 注意：凭证由 gcli2api 管理，CD 机制已不再使用，保留仅为兼容性
             </p>
           </div>
 
@@ -278,27 +271,6 @@ function SettingInput({ label, desc, value, onChange, type = "text", hint, hintC
         {suffix && <span className="text-dark-400 text-sm whitespace-nowrap">{suffix}</span>}
       </div>
       {hint && <p className={`text-xs mt-1.5 ${hintColor}`}>{hint}</p>}
-    </div>
-  );
-}
-
-function CDInput({ label, value, onChange, color }) {
-  const colors = {
-    cyan: 'focus:ring-cyan-500',
-    orange: 'focus:ring-orange-500',
-    pink: 'focus:ring-pink-500',
-  };
-  
-  return (
-    <div>
-      <label className="text-xs text-dark-400 mb-1 block">{label} (秒)</label>
-      <input
-        type="number"
-        min="0"
-        value={value ?? 0}
-        onChange={(e) => onChange(e.target.value === '' ? 0 : parseInt(e.target.value))}
-        className={`w-full bg-dark-950 border border-dark-700 rounded-lg px-3 py-1.5 text-white focus:outline-none focus:ring-2 ${colors[color] || 'focus:ring-primary-500'}`}
-      />
     </div>
   );
 }

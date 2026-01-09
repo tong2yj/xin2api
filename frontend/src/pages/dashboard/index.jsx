@@ -1,34 +1,21 @@
-import { BarChart2, Key, Shield, User, AlertCircle } from 'lucide-react';
+import { BarChart2, Key, User, AlertCircle, Shield } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import api from '../../api/index';
 import { Card } from '../../components/common/Card';
 import { PageLayout } from '../../components/layout/PageLayout';
 import { useAuth } from '../../contexts/AuthContext';
 import { useWebSocket } from '../../hooks/useWebSocket';
 import ApiKeyTab from './ApiKeyTab';
-import CredentialsTab from './CredentialsTab';
 import StatsTab from './StatsTab';
 
 export default function Dashboard() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [userInfo, setUserInfo] = useState(null);
   const [oauthMessage, setOauthMessage] = useState(null);
   const [activeTab, setActiveTab] = useState('apikey');
-  const [forceDonate, setForceDonate] = useState(false);
-  const [rpmConfig, setRpmConfig] = useState({ base: 5, contributor: 10 });
-
-  // Fetch configs
-  useEffect(() => {
-    api.get('/api/manage/public-config').then((res) => {
-      setForceDonate(res.data.force_donate || false);
-      setRpmConfig({
-        base: res.data.base_rpm || 5,
-        contributor: res.data.contributor_rpm || 10,
-      });
-    }).catch(() => {});
-  }, []);
 
   // Handle OAuth callback
   useEffect(() => {
@@ -59,8 +46,8 @@ export default function Dashboard() {
   // Handle URL params for tabs
   useEffect(() => {
     const tab = searchParams.get('tab');
-    if (tab === 'credentials') setActiveTab('credentials');
-    else if (tab === 'apikey') setActiveTab('apikey');
+    if (tab === 'apikey') setActiveTab('apikey');
+    else if (tab === 'credentials') setActiveTab('credentials');
     else if (tab === 'stats') setActiveTab('stats');
   }, [searchParams]);
 
@@ -201,15 +188,28 @@ export default function Dashboard() {
 
         {/* Main Content Area */}
         <div className="min-w-0 animate-fade-in">
-          {activeTab === 'credentials' && (
-            <div className="space-y-6">
-              <CredentialsTab forceDonate={forceDonate} />
-            </div>
-          )}
-
           {activeTab === 'apikey' && (
             <Card className="animate-slide-up">
-              <ApiKeyTab userInfo={userInfo} rpmConfig={rpmConfig} />
+              <ApiKeyTab userInfo={userInfo} />
+            </Card>
+          )}
+
+          {activeTab === 'credentials' && (
+            <Card className="animate-slide-up">
+              <div className="text-center py-12">
+                <Shield size={48} className="mx-auto mb-4 text-primary-400" />
+                <h3 className="text-lg font-semibold text-dark-50 mb-2">凭证管理</h3>
+                <p className="text-dark-400 mb-6">
+                  通过 OAuth 认证获取 Google 凭证，用于 gcli2api 桥接服务
+                </p>
+                <button
+                  onClick={() => navigate('/oauth')}
+                  className="inline-flex items-center gap-2 px-6 py-3 bg-primary-600 hover:bg-primary-700 text-white rounded-xl transition-colors font-medium"
+                >
+                  <Shield size={18} />
+                  前往 OAuth 认证
+                </button>
+              </div>
             </Card>
           )}
 

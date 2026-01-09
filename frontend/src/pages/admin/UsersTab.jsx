@@ -1,4 +1,4 @@
-import { Check, Key, Trash2, X, UserCheck, UserX, RefreshCw } from 'lucide-react';
+import { Check, Key, Trash2, X, UserCheck, RefreshCw } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import api from '../../api/index';
 import { Button } from '../../components/common/Button';
@@ -93,13 +93,13 @@ export default function UsersTab() {
     }
   };
 
-  const toggleUserApproved = async (userId, isApproved) => {
+  const approveUser = async (userId) => {
     try {
-      await api.put(`/api/admin/users/${userId}`, { is_approved: !isApproved });
-      toast.success(isApproved ? '已取消审核' : '审核通过');
+      await api.put(`/api/admin/users/${userId}`, { is_approved: true });
+      toast.success('审核通过');
       fetchUsers();
     } catch (err) {
-      toast.error('审核状态更新失败');
+      toast.error('审核失败');
     }
   };
 
@@ -273,14 +273,14 @@ export default function UsersTab() {
                 </td>
                 <td>
                   <div className="flex gap-1">
-                    {!u.is_admin && (
+                    {!u.is_admin && !u.is_approved && (
                       <Button
                         variant="ghost"
                         size="icon-sm"
-                        onClick={() => toggleUserApproved(u.id, u.is_approved)}
-                        className={u.is_approved ? '!text-yellow-400 hover:!bg-yellow-500/10' : '!text-blue-400 hover:!bg-blue-500/10'}
-                        title={u.is_approved ? '取消审核' : '审核通过'}
-                        icon={u.is_approved ? UserX : UserCheck}
+                        onClick={() => approveUser(u.id)}
+                        className="!text-blue-400 hover:!bg-blue-500/10"
+                        title="审核通过"
+                        icon={UserCheck}
                       />
                     )}
                     <Button

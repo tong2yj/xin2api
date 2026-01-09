@@ -7,7 +7,7 @@ import { ConfirmModal } from '../../components/modals/Modal';
 import { useToast } from '../../contexts/ToastContext';
 import { copyToClipboard } from '../../utils/clipboard';
 
-export default function ApiKeyTab({ userInfo, rpmConfig }) {
+export default function ApiKeyTab({ userInfo }) {
   const toast = useToast();
   const [myKey, setMyKey] = useState(null);
   const [keyLoading, setKeyLoading] = useState(true);
@@ -126,25 +126,6 @@ export default function ApiKeyTab({ userInfo, rpmConfig }) {
           </div>
         </div>
       </div>
-
-      {/* 使用提示 */}
-      {!userInfo?.has_public_credentials && (
-        <div className="bg-amber-500/5 border border-amber-500/20 rounded-xl p-4 mb-6">
-          <div className="flex items-start gap-3">
-            <div className="text-lg">⚠️</div>
-            <div>
-              <div className="text-amber-400 font-medium">
-                尚未上传有效凭证
-              </div>
-              <div className="text-amber-500/70 text-sm mt-1">
-                当前 Pro 模型调用频率限制为 <span className="text-amber-400 font-bold">{rpmConfig.base}</span> 次/分钟。
-                <br />
-                上传至少一个有效凭证即可提升到 <span className="text-amber-400 font-bold">{rpmConfig.contributor}</span> 次/分钟。
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* 使用说明 */}
       <div className="border-t border-white/5 pt-6">

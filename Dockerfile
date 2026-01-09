@@ -8,8 +8,8 @@ WORKDIR /build
 # 复制前端依赖文件
 COPY frontend/package*.json ./frontend/
 
-# 安装依赖
-RUN cd frontend && npm ci --only=production
+# 安装依赖（包含 devDependencies，因为需要 vite 构建工具）
+RUN cd frontend && npm ci
 
 # 复制前端源码
 COPY frontend/ ./frontend/

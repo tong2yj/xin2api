@@ -1,7 +1,7 @@
 import {
   LayoutDashboard,
   Users,
-  Key,
+  Server,
   Settings,
   ScrollText,
   LogOut,
@@ -19,10 +19,11 @@ export function AdminLayout({ children, activeTab, onTabChange }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const menuItems = [
-    { id: 'overview', label: '概览', icon: LayoutDashboard },
+    { id: 'stats', label: '概览', icon: LayoutDashboard },
     { id: 'users', label: '用户管理', icon: Users },
-    { id: 'credentials', label: '凭证池', icon: Key },
+    { id: 'endpoints', label: 'OpenAI端点', icon: Server },
     { id: 'logs', label: '日志与监控', icon: ScrollText },
+    { id: 'errors', label: '错误统计', icon: ScrollText },
     { id: 'settings', label: '系统设置', icon: Settings },
   ];
 

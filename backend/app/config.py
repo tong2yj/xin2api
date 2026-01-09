@@ -1,5 +1,6 @@
 from pydantic_settings import BaseSettings
-from typing import Optional
+from pydantic import field_validator
+from typing import Optional, List, Union
 import os
 import shutil
 
@@ -33,47 +34,51 @@ class Settings(BaseSettings):
     
     # 用户配额（统一按次数）
     default_daily_quota: int = 100  # 新用户默认每日配额（次数）
-
-    # 凭证奖励配额（上传凭证后获得的额外配额次数）
     credential_reward_quota: int = 1000  # 上传凭证奖励的配额次数
-
-    # 凭证池模式配置
-    credential_pool_mode: str = "full_shared"  # 凭证池模式: private, tier3_shared, full_shared
-    lock_donate: bool = False  # 是否锁定捐赠（有效凭证不能取消捐赠）
-
-    # CD 机制（冷却时间，单位：秒）
-    # 注意：凭证由 gcli2api 管理，CD 机制已不再使用，保留仅为兼容性
-    cd_flash: int = 0   # Flash 模型组 CD（0=无CD）
-    cd_pro: int = 4     # Pro 模型组 CD（默认4秒）
-    cd_30: int = 4      # 3.0 模型组 CD（默认4秒）
 
     # 注册
     allow_registration: bool = True
-    
+    require_approval: bool = False  # 新用户是否需要管理员审核
+
     # 公告
     announcement_enabled: bool = False
     announcement_title: str = ""
     announcement_content: str = ""
     announcement_read_seconds: int = 5  # 阅读多少秒才能关闭
-    
-    # Google OAuth (Gemini CLI 官方配置)
-    google_client_id: str = "681255809395-oo8ft2oprdrnp9e3aqf6av3hmdib135j.apps.googleusercontent.com"
-    google_client_secret: str = "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"
 
-    # Antigravity OAuth 配置
-    antigravity_client_id: str = "1071006060591-tmhssin2h21lcre235vtolojh4g403ep.apps.googleusercontent.com"
-    antigravity_client_secret: str = "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"
-    antigravity_api_url: str = "https://daily-cloudcode-pa.sandbox.googleapis.com"
-    
+    # Google OAuth (已废弃，仅支持 gcli2api 桥接模式)
+    # google_client_id: str = ""
+    # google_client_secret: str = ""
+
+    # Antigravity OAuth 配置 (已废弃，仅支持 gcli2api 桥接模式)
+    # antigravity_client_id: str = ""
+    # antigravity_client_secret: str = ""
+    # antigravity_api_url: str = ""
+
     # OpenAI API 反代 (可选)
     openai_api_key: str = ""  # 如果填写，则支持真正的 OpenAI API 反代
     openai_api_base: str = "https://api.openai.com"
 
-    # gcli2api 桥接配置
-    enable_gcli2api_bridge: bool = False  # 是否启用 gcli2api 桥接模式
+    # gcli2api 桥接配置（强制启用）
+    enable_gcli2api_bridge: bool = True  # 强制启用 gcli2api 桥接模式
     gcli2api_base_url: str = "http://localhost:7861"  # gcli2api 服务地址
     gcli2api_api_password: str = ""  # gcli2api 的 API_PASSWORD (用于聊天接口)
     gcli2api_panel_password: str = ""  # gcli2api 的 PANEL_PASSWORD (用于管理接口)
+
+    # 三端点轮询配置
+    endpoint_priority: Union[str, List[str]] = "gcli2api,antigravity,openai"  # 端点优先级顺序
+
+    @field_validator('endpoint_priority', mode='before')
+    @classmethod
+    def parse_endpoint_priority(cls, v):
+        """解析端点优先级配置，支持字符串和列表两种格式"""
+        if isinstance(v, str):
+            # 从环境变量读取的逗号分隔字符串
+            return [x.strip() for x in v.split(',') if x.strip()]
+        elif isinstance(v, list):
+            # 已经是列表格式
+            return v
+        return ["gcli2api", "antigravity", "openai"]  # 默认值
 
     class Config:
         env_file = ".env"
@@ -85,11 +90,9 @@ settings = Settings()
 # 可持久化的配置项
 PERSISTENT_CONFIG_KEYS = [
     "allow_registration",
+    "require_approval",
     "default_daily_quota",
     "credential_reward_quota",
-    "cd_flash",
-    "cd_pro",
-    "cd_30",
     "announcement_enabled",
     "announcement_title",
     "announcement_content",

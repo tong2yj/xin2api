@@ -8,7 +8,6 @@ from datetime import datetime, date, timedelta
 from app.database import get_db
 from app.models.user import User, APIKey, UsageLog, Credential
 from app.services.auth import get_current_admin, get_password_hash
-from app.services.credential_pool import CredentialPool
 from app.services.websocket import notify_user_update, notify_credential_update
 from app.services.error_classifier import ErrorType, ERROR_TYPE_NAMES, get_error_type_name
 from app.utils.logger import log_warning, log_error

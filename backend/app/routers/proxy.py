@@ -10,8 +10,6 @@ import time
 from app.database import get_db, async_session
 from app.models.user import User, UsageLog, OpenAIEndpoint
 from app.services.auth import get_user_by_api_key
-from app.services.credential_pool import CredentialPool
-from app.services.gemini_client import GeminiClient
 from app.services.websocket import notify_log_update, notify_stats_update
 from app.services.error_classifier import classify_error_simple, ErrorType
 from app.config import settings
@@ -120,6 +118,216 @@ async def get_user_from_api_key(request: Request, db: AsyncSession = Depends(get
 
     log_info("Auth", f"验证通过: {user.username}, 已用: {current_usage}/{user.daily_quota}")
     return user
+
+
+# ===== 三端点顺序轮询逻辑 =====
+
+async def sequential_request_fallback(
+    body: dict,
+    user: User,
+    db: AsyncSession,
+    client_ip: str,
+    user_agent: str,
+    start_time: float
+):
+    """
+    顺序轮询三个端点，失败后尝试下一个
+
+    Args:
+        body: 请求体
+        user: 用户对象
+        db: 数据库会话
+        client_ip: 客户端 IP
+        user_agent: User Agent
+        start_time: 请求开始时间
+
+    Returns:
+        响应对象（JSONResponse 或 StreamingResponse）
+    """
+    from app.services.gcli2api_bridge import gcli2api_bridge
+
+    model = body.get("model", "gemini-2.5-flash")
+    stream = body.get("stream", False)
+
+    # 定义端点优先级（从配置读取）
+    endpoint_priority = getattr(settings, 'endpoint_priority', ['gcli2api', 'antigravity', 'openai'])
+
+    last_error = None
+    last_status_code = 500
+
+    for endpoint_name in endpoint_priority:
+        try:
+            log_info("Sequential", f"尝试端点: {endpoint_name}, 模型: {model}")
+
+            # ========== 端点 1: GeminiCLI (gcli2api) ==========
+            if endpoint_name == "gcli2api" and settings.enable_gcli2api_bridge:
+                bridge_path = "/v1/chat/completions"
+                bridge_endpoint_name = "/v1/chat/completions (gcli2api)"
+
+                if stream:
+                    response = await gcli2api_bridge.forward_stream(
+                        path=bridge_path,
+                        json_data=body
+                    )
+                else:
+                    result = await gcli2api_bridge.forward_request(
+                        path=bridge_path,
+                        method="POST",
+                        json_data=body
+                    )
+                    response = JSONResponse(content=result)
+
+                # 记录成功日志
+                log = UsageLog(
+                    user_id=user.id,
+                    model=model,
+                    endpoint=bridge_endpoint_name,
+                    status_code=200,
+                    latency_ms=round((time.time() - start_time) * 1000, 1),
+                    client_ip=client_ip,
+                    user_agent=user_agent
+                )
+                db.add(log)
+                await db.commit()
+
+                if not stream:
+                    await notify_log_update({
+                        "username": user.username,
+                        "model": model,
+                        "endpoint": endpoint_name,
+                        "status_code": 200,
+                        "latency_ms": round((time.time() - start_time) * 1000, 1),
+                        "created_at": datetime.utcnow().isoformat()
+                    })
+                    await notify_stats_update()
+
+                log_info("Sequential", f"端点 {endpoint_name} 成功")
+                return response
+
+            # ========== 端点 2: Antigravity (gcli2api) ==========
+            elif endpoint_name == "antigravity" and settings.enable_gcli2api_bridge:
+                bridge_path = "/antigravity/v1/chat/completions"
+                bridge_endpoint_name = "/antigravity/v1/chat/completions (gcli2api)"
+
+                if stream:
+                    response = await gcli2api_bridge.forward_stream(
+                        path=bridge_path,
+                        json_data=body
+                    )
+                else:
+                    result = await gcli2api_bridge.forward_request(
+                        path=bridge_path,
+                        method="POST",
+                        json_data=body
+                    )
+                    response = JSONResponse(content=result)
+
+                # 记录成功日志
+                log = UsageLog(
+                    user_id=user.id,
+                    model=model,
+                    endpoint=bridge_endpoint_name,
+                    status_code=200,
+                    latency_ms=round((time.time() - start_time) * 1000, 1),
+                    client_ip=client_ip,
+                    user_agent=user_agent
+                )
+                db.add(log)
+                await db.commit()
+
+                if not stream:
+                    await notify_log_update({
+                        "username": user.username,
+                        "model": model,
+                        "endpoint": endpoint_name,
+                        "status_code": 200,
+                        "latency_ms": round((time.time() - start_time) * 1000, 1),
+                        "created_at": datetime.utcnow().isoformat()
+                    })
+                    await notify_stats_update()
+
+                log_info("Sequential", f"端点 {endpoint_name} 成功")
+                return response
+
+            # ========== 端点 3: OpenAI 端点 ==========
+            elif endpoint_name == "openai":
+                # 获取可用的 OpenAI 端点
+                result = await db.execute(
+                    select(OpenAIEndpoint)
+                    .where(OpenAIEndpoint.is_active == True)
+                    .order_by(OpenAIEndpoint.priority.desc(), OpenAIEndpoint.id)
+                )
+                endpoints = result.scalars().all()
+
+                if not endpoints:
+                    log_warning("Sequential", "没有可用的 OpenAI 端点")
+                    continue
+
+                # 尝试 OpenAI 端点（内部也会轮询）
+                return await handle_openai_endpoint(
+                    request=None,  # 不需要 request 对象
+                    user=user,
+                    db=db,
+                    body=body,
+                    client_ip=client_ip,
+                    user_agent=user_agent,
+                    start_time=start_time
+                )
+
+        except HTTPException as e:
+            last_error = e.detail
+            last_status_code = e.status_code
+            log_warning("Sequential", f"端点 {endpoint_name} 失败: {last_error}")
+
+            # 记录失败日志
+            try:
+                log = UsageLog(
+                    user_id=user.id,
+                    model=model,
+                    endpoint=f"{endpoint_name} (failed)",
+                    status_code=last_status_code,
+                    latency_ms=round((time.time() - start_time) * 1000, 1),
+                    error_message=str(last_error)[:2000],
+                    client_ip=client_ip,
+                    user_agent=user_agent
+                )
+                db.add(log)
+                await db.commit()
+            except:
+                pass
+
+            continue
+
+        except Exception as e:
+            last_error = str(e)
+            last_status_code = extract_status_code(last_error, 500)
+            log_error("Sequential", f"端点 {endpoint_name} 异常: {last_error}")
+
+            # 记录失败日志
+            try:
+                log = UsageLog(
+                    user_id=user.id,
+                    model=model,
+                    endpoint=f"{endpoint_name} (error)",
+                    status_code=last_status_code,
+                    latency_ms=round((time.time() - start_time) * 1000, 1),
+                    error_message=str(last_error)[:2000],
+                    client_ip=client_ip,
+                    user_agent=user_agent
+                )
+                db.add(log)
+                await db.commit()
+            except:
+                pass
+
+            continue
+
+    # 所有端点都失败
+    log_error("Sequential", f"所有端点都失败，最后错误: {last_error}")
+    raise HTTPException(
+        status_code=503,
+        detail=f"所有端点都失败了。最后错误: {last_error}"
+    )
 
 
 # ===== CORS 预检请求处理 =====
@@ -360,9 +568,9 @@ async def options_handler():
 
 @router.get("/v1/models")
 async def list_models(request: Request, user: User = Depends(get_user_from_api_key), db: AsyncSession = Depends(get_db)):
-    """列出可用模型 (OpenAI兼容) - 统一端点，包含 Gemini、Antigravity 和 OpenAI 兼容端点的模型"""
+    """列出可用模型 (OpenAI兼容) - 统一端点，自动轮询三个端点"""
 
-    # ========== Gemini CLI 模型 ==========
+    # ========== Gemini 模型（无前缀，自动轮询）==========
     # 基础模型 (包含 2.5 和 3.0)
     base_models = [
         "gemini-2.5-pro",
@@ -396,30 +604,24 @@ async def list_models(request: Request, user: User = Depends(get_user_from_api_k
     # Image 模型
     models.append({"id": "gemini-2.5-flash-image", "object": "model", "owned_by": "google"})
 
-    # ========== Antigravity 模型（带 ag- 前缀）==========
-    # Gemini 模型（通过 Antigravity）
-    ag_gemini_models = [
-        "ag-gemini-2.5-pro",
-        "ag-gemini-2.5-flash",
-        "ag-gemini-2.5-flash-thinking",
-        "ag-gemini-3-pro-preview",
-        "ag-gemini-3-flash-preview",
-        "ag-gemini-3-pro-low",
-        "ag-gemini-3-pro-high",
-        "ag-gemini-3-pro-image",
-        "ag-gemini-2.5-flash-lite",
-        "ag-gemini-2.5-flash-image",
+    # Antigravity 特有模型（无前缀）
+    antigravity_models = [
+        "gemini-3-pro-low",
+        "gemini-3-pro-high",
+        "gemini-3-pro-image",
+        "gemini-2.5-flash-lite",
     ]
+    for model_id in antigravity_models:
+        models.append({"id": model_id, "object": "model", "owned_by": "google"})
 
-    # Claude 模型（通过 Antigravity）
-    ag_claude_models = [
-        "ag-claude-sonnet-4-5",
-        "ag-claude-sonnet-4-5-thinking",
-        "ag-claude-opus-4-5-thinking",
+    # ========== Claude 模型（无前缀，自动轮询）==========
+    claude_models = [
+        "claude-sonnet-4-5",
+        "claude-sonnet-4-5-thinking",
+        "claude-opus-4-5-thinking",
     ]
-
-    for model_id in ag_gemini_models + ag_claude_models:
-        models.append({"id": model_id, "object": "model", "owned_by": "antigravity"})
+    for model_id in claude_models:
+        models.append({"id": model_id, "object": "model", "owned_by": "anthropic"})
 
     # ========== OpenAI 兼容端点的模型 ==========
     # 获取所有启用的 OpenAI 端点
@@ -482,7 +684,7 @@ async def chat_completions(
     user: User = Depends(get_user_from_api_key),
     db: AsyncSession = Depends(get_db)
 ):
-    """Chat Completions (OpenAI兼容) - 统一端点，支持 Gemini 和 Antigravity"""
+    """Chat Completions (OpenAI兼容) - 三端点顺序轮询模式"""
     start_time = time.time()
 
     # 获取客户端信息
@@ -503,112 +705,20 @@ async def chat_completions(
 
     model = body.get("model", "gemini-2.5-flash")
     messages = body.get("messages", [])
-    stream = body.get("stream", False)
 
     if not messages:
         raise HTTPException(status_code=400, detail="messages不能为空")
 
-    # ========== gcli2api 桥接模式 ==========
-    if settings.enable_gcli2api_bridge:
-        from app.services.gcli2api_bridge import gcli2api_bridge
+    log_info("Proxy", f"收到请求: 用户={user.username}, 模型={model}, 流式={body.get('stream', False)}")
 
-        # 根据模型前缀选择不同的转发端点
-        if model.startswith("ag-"):
-            # ag- 前缀模型转发到 antigravity 端点（使用 Antigravity 凭证池）
-            bridge_path = "/antigravity/v1/chat/completions"
-            bridge_endpoint_name = "/antigravity/v1/chat/completions (gcli2api)"
-            log_info("Bridge", f"[gcli2api] Antigravity 转发: {model}, stream={stream}")
-        else:
-            # 普通模型转发到标准端点（使用 GeminiCLI 凭证池）
-            bridge_path = "/v1/chat/completions"
-            bridge_endpoint_name = "/v1/chat/completions (gcli2api)"
-            log_info("Bridge", f"[gcli2api] GeminiCLI 转发: {model}, stream={stream}")
-
-        # 转发到 gcli2api
-        if stream:
-            # 流式响应
-            response = await gcli2api_bridge.forward_stream(
-                path=bridge_path,
-                json_data=body
-            )
-
-            # 记录使用日志（异步，不阻塞响应）
-            try:
-                log = UsageLog(
-                    user_id=user.id,
-                    model=model,
-                    endpoint=bridge_endpoint_name,
-                    status_code=200,
-                    latency_ms=round((time.time() - start_time) * 1000, 1),
-                    client_ip=client_ip,
-                    user_agent=user_agent
-                )
-                db.add(log)
-                await db.commit()
-            except Exception as log_err:
-                log_error("Bridge", f"日志记录失败: {log_err}")
-
-            return response
-        else:
-            # 非流式响应
-            result = await gcli2api_bridge.forward_request(
-                path=bridge_path,
-                method="POST",
-                json_data=body
-            )
-
-            # 记录使用日志
-            log = UsageLog(
-                user_id=user.id,
-                model=model,
-                endpoint=bridge_endpoint_name,
-                status_code=200,
-                latency_ms=round((time.time() - start_time) * 1000, 1),
-                client_ip=client_ip,
-                user_agent=user_agent
-            )
-            db.add(log)
-            await db.commit()
-
-            await notify_log_update({
-                "username": user.username,
-                "model": model,
-                "status_code": 200,
-                "latency_ms": round((time.time() - start_time) * 1000, 1),
-                "created_at": datetime.utcnow().isoformat()
-            })
-            await notify_stats_update()
-
-            return JSONResponse(content=result)
-    # ========== gcli2api 桥接模式结束 ==========
-
-    # ========== 未启用 gcli2api 桥接时的处理逻辑 ==========
-    # 检测模型前缀，判断使用哪个后端
-    # ag- 前缀 = Antigravity 后端（需要本地 Antigravity 凭证或 OpenAI 端点）
-    # 其他模型 = OpenAI 端点后端
-
-    if model.startswith("ag-"):
-        # ag- 前缀模型：转发到 Antigravity 处理（使用本地 Antigravity 凭证）
-        from app.routers.antigravity import handle_chat_completions_antigravity
-        return await handle_chat_completions_antigravity(request, user, db, body)
-
-    # 检查是否有可用的 OpenAI 端点
-    openai_endpoints_result = await db.execute(
-        select(OpenAIEndpoint)
-        .where(OpenAIEndpoint.is_active == True)
-        .limit(1)
-    )
-    has_openai_endpoints = openai_endpoints_result.scalar_one_or_none() is not None
-
-    # 普通模型：必须配置 OpenAI 端点或启用 gcli2api 桥接
-    if has_openai_endpoints:
-        return await handle_openai_endpoint(request, user, db, body, client_ip, user_agent, start_time)
-
-    # 没有配置 OpenAI 端点，也没有启用 gcli2api 桥接
-    raise HTTPException(
-        status_code=503,
-        detail=f"模型 {model} 需要配置 OpenAI 端点或启用 gcli2api 桥接。\n"
-               f"请在后台添加 OpenAI 兼容的 API 端点，或在 .env 中设置 ENABLE_GCLI2API_BRIDGE=true"
+    # ========== 使用三端点顺序轮询模式 ==========
+    return await sequential_request_fallback(
+        body=body,
+        user=user,
+        db=db,
+        client_ip=client_ip,
+        user_agent=user_agent,
+        start_time=start_time
     )
 
 

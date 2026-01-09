@@ -20,8 +20,6 @@ export default function OAuth() {
   const [callbackUrl, setCallbackUrl] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState({ type: '', text: '' });
-  const [isDonate, setIsDonate] = useState(true);
-  const [forceDonate, setForceDonate] = useState(false);
   const [forAntigravity, setForAntigravity] = useState(false);
   
   // 引导流程状态
@@ -29,16 +27,6 @@ export default function OAuth() {
   const [countdown, setCountdown] = useState(8);
   const [showQuiz, setShowQuiz] = useState(false);
   const [quizPassed, setQuizPassed] = useState(false);
-
-  // 获取强制捐赠配置
-  useEffect(() => {
-    api.get('/api/manage/public-config').then((res) => {
-      if (res.data.force_donate) {
-        setForceDonate(true);
-        setIsDonate(true);
-      }
-    }).catch(() => {});
-  }, []);
 
   // 倒计时效果
   useEffect(() => {
@@ -92,14 +80,13 @@ export default function OAuth() {
     try {
       const res = await api.post('/api/oauth/from-callback-url', {
         callback_url: callbackUrl,
-        is_public: isDonate,
+        is_public: true,  // 默认上传到公共池
         for_antigravity: forAntigravity,
       });
-      const donateText = res.data.is_public ? '（已上传到公共池 🎉）' : '（私有凭证）';
       const typeText = forAntigravity ? ' [Antigravity]' : ' [Gemini]';
       setMessage({
         type: 'success',
-        text: `凭证获取成功！邮箱: ${res.data.email}${typeText} ${donateText}`,
+        text: `凭证获取成功！邮箱: ${res.data.email}${typeText}，已获得 +1000 次配额奖励！`,
       });
       setCallbackUrl('');
     } catch (err) {
@@ -142,13 +129,17 @@ export default function OAuth() {
               <div className="bg-dark-950 p-4 rounded-xl border border-white/5">
                 <p className="mb-2">授权后，浏览器会打开一个以 <span className="text-primary-400 font-mono">localhost</span> 开头的页面。</p>
                 <p className="text-red-400 font-bold flex items-center gap-2">
-                   ⚠️ 该页面显示“无法访问”是正常现象
+                   ⚠️ 该页面显示"无法访问"是正常现象
                 </p>
               </div>
-              
+
               <p className="text-amber-300 font-medium">
                 您需要做的：<span className="text-white">完整复制那个无法访问页面的网址</span>，然后回到这里粘贴。
               </p>
+
+              <div className="bg-blue-500/10 p-3 rounded-lg border border-blue-500/20 text-blue-300 text-xs">
+                💡 提示：凭证将自动保存到 gcli2api 服务，上传成功后可获得 <span className="text-blue-200 font-bold">+1000 次</span> 配额奖励！
+              </div>
             </div>
             
             <Button
@@ -298,24 +289,16 @@ export default function OAuth() {
             <span className="w-8 h-8 rounded-full bg-emerald-600/20 text-emerald-400 text-sm font-bold flex items-center justify-center border border-emerald-500/30">3</span>
             提交并生成凭证
           </h2>
-          
-          {/* 捐赠选项 */}
-          {!forceDonate && (
-            <label className="flex items-start gap-4 p-4 mb-6 bg-primary-500/5 border border-primary-500/20 rounded-xl cursor-pointer hover:bg-primary-500/10 transition-colors relative z-10 group">
-              <input
-                type="checkbox"
-                checked={isDonate}
-                onChange={(e) => setIsDonate(e.target.checked)}
-                className="mt-1 w-5 h-5 rounded border-dark-600 bg-dark-800 text-primary-600 focus:ring-primary-500 focus:ring-offset-dark-900 accent-primary-500"
-              />
-              <div>
-                <div className="text-primary-300 font-medium group-hover:text-primary-200 transition-colors">🎁 上传到公共池（推荐）</div>
-                <p className="text-dark-400 text-sm mt-1">
-                  上传后可使用所有公共凭证，还能获得额度奖励！
-                </p>
-              </div>
-            </label>
-          )}
+
+          {/* 配额奖励提示 */}
+          <div className="p-4 mb-6 bg-primary-500/5 border border-primary-500/20 rounded-xl relative z-10">
+            <div className="text-primary-300 font-medium flex items-center gap-2">
+              🎁 配额奖励
+            </div>
+            <p className="text-dark-400 text-sm mt-1">
+              凭证将自动上传到 gcli2api 公共池，上传成功后可获得 <span className="text-primary-300 font-semibold">+1000 次</span> 配额奖励！
+            </p>
+          </div>
 
           <Button
             onClick={submitCallbackUrl}

@@ -64,7 +64,8 @@ async def register(data: UserRegister, db: AsyncSession = Depends(get_db)):
             username=data.username,
             email=data.email,
             hashed_password=get_password_hash(data.password),
-            daily_quota=settings.default_daily_quota
+            daily_quota=settings.default_daily_quota,
+            is_approved=not settings.require_approval  # 如果不需要审核，则自动通过
         )
         db.add(user)
         await db.commit()
@@ -716,28 +717,11 @@ async def export_my_credential(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """导出我的凭证为 JSON 格式"""
-    from app.services.crypto import decrypt_credential
-    
-    result = await db.execute(
-        select(Credential).where(Credential.id == cred_id, Credential.user_id == user.id)
+    """导出我的凭证为 JSON 格式（桥接模式下不可用）"""
+    raise HTTPException(
+        status_code=400,
+        detail="桥接模式下凭证存储在 gcli2api 服务中，无法导出。请在 gcli2api 管理面板中导出凭证。"
     )
-    cred = result.scalar_one_or_none()
-    if not cred:
-        raise HTTPException(status_code=404, detail="凭证不存在")
-    
-    # 构建 gcli 兼容的 JSON 格式
-    cred_data = {
-        "client_id": settings.google_client_id,
-        "client_secret": settings.google_client_secret,
-        "refresh_token": decrypt_credential(cred.refresh_token) if cred.refresh_token else "",
-        "token": decrypt_credential(cred.api_key) if cred.api_key else "",
-        "project_id": cred.project_id or "",
-        "email": cred.email or "",
-        "type": "authorized_user"
-    }
-    
-    return cred_data
 
 
 @router.post("/credentials/{cred_id}/verify")

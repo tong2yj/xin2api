@@ -47,7 +47,14 @@
       "Bash(docker-compose exec:*)",
       "Bash(test -f:*)",
       "Bash(docker-compose -f \"D:\\\\cc\\\\gcli2api-master\\\\docker-compose.yml\" logs --tail=50)",
-      "Bash(docker-compose -f \"D:\\\\cc\\\\gcli2api-master\\\\docker-compose.yml\" logs --tail=50 --since=5m)"
+      "Bash(docker-compose -f \"D:\\\\cc\\\\gcli2api-master\\\\docker-compose.yml\" logs --tail=50 --since=5m)",
+      "Bash(docker stop:*)",
+      "Bash(docker rm:*)",
+      "Bash(docker build:*)",
+      "Bash(docker run:*)",
+      "Bash(timeout 10 docker logs:*)",
+      "Bash(timeout:*)",
+      "Bash(docker logs:*)"
     ]
   }
 }
