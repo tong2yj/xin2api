@@ -1,9 +1,11 @@
 version: '3.8'
 
 services:
-  # 后端服务
+  # 后端服务（包含前端静态文件）
   backend:
-    build: ./backend
+    build:
+      context: .
+      dockerfile: Dockerfile
     container_name: catiecli-backend
     ports:
       - '${PORT:-10601}:${PORT:-10601}'
