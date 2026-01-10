@@ -100,11 +100,12 @@ async def get_user_from_api_key(request: Request, db: AsyncSession = Depends(get
     # 所有用户都可以使用所有模型，不再检查凭证等级限制
     # 只通过次数配额来限制使用
 
-    # 检查今日总使用次数
+    # 检查今日总使用次数(只统计成功的请求,status_code=200)
     total_usage_result = await db.execute(
         select(func.count(UsageLog.id))
         .where(UsageLog.user_id == user.id)
         .where(UsageLog.created_at >= start_of_day)
+        .where(UsageLog.status_code == 200)
     )
     current_usage = total_usage_result.scalar() or 0
 

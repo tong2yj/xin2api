@@ -124,18 +124,19 @@ async def login(data: UserLogin, db: AsyncSession = Depends(get_db)):
 @router.get("/me")
 async def get_me(user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     """获取当前用户信息"""
-    # 获取今日使用量
+    # 获取今日使用量(只统计成功的请求,status_code=200)
     now = datetime.utcnow()
     reset_time_utc = now.replace(hour=7, minute=0, second=0, microsecond=0)
     if now < reset_time_utc:
         start_of_day = reset_time_utc - timedelta(days=1)
     else:
         start_of_day = reset_time_utc
-        
+
     result = await db.execute(
         select(func.count(UsageLog.id))
         .where(UsageLog.user_id == user.id)
         .where(UsageLog.created_at >= start_of_day)
+        .where(UsageLog.status_code == 200)
     )
     today_usage = result.scalar() or 0
     
@@ -988,12 +989,13 @@ async def get_my_stats(user: User = Depends(get_current_user), db: AsyncSession 
     credentials_count = len(creds)
     cred_30_count = len([c for c in creds if c.model_tier == "3" and c.is_active])
 
-    # 获取今日使用量
+    # 获取今日使用量(只统计成功的请求,status_code=200)
     today = date.today()
     today_usage_result = await db.execute(
         select(func.count(UsageLog.id)).where(
             UsageLog.user_id == user.id,
-            func.date(UsageLog.created_at) == today
+            func.date(UsageLog.created_at) == today,
+            UsageLog.status_code == 200
         )
     )
     today_usage = today_usage_result.scalar() or 0

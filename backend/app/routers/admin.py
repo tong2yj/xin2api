@@ -45,11 +45,12 @@ async def list_users(
     user_ids = [u.id for u in users]
     today = date.today()
     
-    # 2. 批量查询今日使用量
+    # 2. 批量查询今日使用量(只统计成功的请求,status_code=200)
     usage_result = await db.execute(
         select(UsageLog.user_id, func.count(UsageLog.id))
         .where(UsageLog.user_id.in_(user_ids))
         .where(func.date(UsageLog.created_at) == today)
+        .where(UsageLog.status_code == 200)
         .group_by(UsageLog.user_id)
     )
     usage_map = {row[0]: row[1] for row in usage_result.fetchall()}
