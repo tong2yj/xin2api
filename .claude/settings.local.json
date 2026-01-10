@@ -55,7 +55,12 @@
       "Bash(timeout 10 docker logs:*)",
       "Bash(timeout:*)",
       "Bash(docker logs:*)",
-      "Bash(docker-compose config:*)"
+      "Bash(docker-compose config:*)",
+      "Bash(git config:*)",
+      "Bash(chmod:*)",
+      "Bash(git check-ignore:*)",
+      "Bash(git reset:*)",
+      "Bash(docker volume:*)"
     ]
   }
 }
