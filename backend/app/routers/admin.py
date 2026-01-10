@@ -821,13 +821,11 @@ def get_api_source(log: UsageLog):
     if model.startswith("ag-") or "antigravity" in endpoint.lower():
         return "Antigravity"
     # GeminiCLI: 有凭证ID且模型是 gemini 系列
-    elif credential_id and ("gemini" in model.lower() or model.startswith("gemini")):
+    elif credential_id and ("gemini" in model.lower()):
         return "GeminiCLI"
-    # OpenAI: 无凭证ID 或其他情况
-    elif not credential_id:
-        return "OpenAI"
+    # OpenAI: 其他情况(包括 gpt 系列等)
     else:
-        return "GeminiCLI"
+        return "OpenAI"
 
 
 @router.get("/logs")

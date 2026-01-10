@@ -1016,14 +1016,15 @@ async def get_my_stats(user: User = Depends(get_current_user), db: AsyncSession 
         endpoint = log.endpoint or ""
         credential_id = log.credential_id
 
+        # Antigravity: 模型以 ag- 开头或端点包含 antigravity
         if model.startswith("ag-") or "antigravity" in endpoint.lower():
             return "Antigravity"
-        elif credential_id and ("gemini" in model.lower() or model.startswith("gemini")):
+        # GeminiCLI: 有凭证ID且模型是 gemini 系列
+        elif credential_id and ("gemini" in model.lower()):
             return "GeminiCLI"
-        elif not credential_id:
-            return "OpenAI"
+        # OpenAI: 其他情况(包括 gpt 系列等)
         else:
-            return "GeminiCLI"
+            return "OpenAI"
 
     today_logs = [
         {
