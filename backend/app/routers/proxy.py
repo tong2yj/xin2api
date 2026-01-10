@@ -402,7 +402,7 @@ async def handle_openai_endpoint(request: Request, user: User, db: AsyncSession,
                                         model=model,
                                         endpoint="/v1/chat/completions",
                                         status_code=200,
-                                        latency_ms=round((time.time() - start_time), 1),
+                                        latency_ms=round((time.time() - start_time) * 1000, 1),
                                         client_ip=client_ip,
                                         user_agent=user_agent
                                     )
@@ -441,7 +441,7 @@ async def handle_openai_endpoint(request: Request, user: User, db: AsyncSession,
                                         model=model,
                                         endpoint="/v1/chat/completions",
                                         status_code=actual_status_code,
-                                        latency_ms=round((time.time() - start_time), 1),
+                                        latency_ms=round((time.time() - start_time) * 1000, 1),
                                         error_message=error_msg[:2000],
                                         client_ip=client_ip,
                                         user_agent=user_agent
@@ -485,7 +485,7 @@ async def handle_openai_endpoint(request: Request, user: User, db: AsyncSession,
                         model=model,
                         endpoint="/v1/chat/completions",
                         status_code=200,
-                        latency_ms=round((time.time() - start_time), 1),
+                        latency_ms=round((time.time() - start_time) * 1000, 1),
                         client_ip=client_ip,
                         user_agent=user_agent
                     )
@@ -496,7 +496,7 @@ async def handle_openai_endpoint(request: Request, user: User, db: AsyncSession,
                         "username": user.username,
                         "model": model,
                         "status_code": 200,
-                        "latency_ms": round((time.time() - start_time), 1),
+                        "latency_ms": round((time.time() - start_time) * 1000, 1),
                         "created_at": datetime.utcnow().isoformat()
                     })
                     await notify_stats_update()
@@ -515,7 +515,7 @@ async def handle_openai_endpoint(request: Request, user: User, db: AsyncSession,
                 model=model,
                 endpoint="/v1/chat/completions",
                 status_code=e.response.status_code,
-                latency_ms=round((time.time() - start_time), 1),
+                latency_ms=round((time.time() - start_time) * 1000, 1),
                 error_message=last_error[:2000],
                 client_ip=client_ip,
                 user_agent=user_agent
@@ -541,7 +541,7 @@ async def handle_openai_endpoint(request: Request, user: User, db: AsyncSession,
                 model=model,
                 endpoint="/v1/chat/completions",
                 status_code=actual_status_code,
-                latency_ms=round((time.time() - start_time), 1),
+                latency_ms=round((time.time() - start_time) * 1000, 1),
                 error_message=last_error[:2000],
                 client_ip=client_ip,
                 user_agent=user_agent

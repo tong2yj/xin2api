@@ -1034,7 +1034,7 @@ async def get_my_stats(user: User = Depends(get_current_user), db: AsyncSession 
             "model": log.model,
             "endpoint": log.endpoint,
             "status_code": log.status_code,
-            "latency_ms": log.latency_ms,
+            "latency_ms": log.latency_ms / 1000 if log.latency_ms else 0,
             "api_source": get_api_source(log),
             "credential_email": log.credential_email,
             "created_at": log.created_at.isoformat() + "Z" if log.created_at else None
