@@ -49,16 +49,8 @@ RUN find . -type f -name '*.pyc' -delete && \
     find . -type d -name '__pycache__' -delete && \
     find . -type f -name '*.pyo' -delete
 
-# 创建数据目录并设置权限
-RUN mkdir -p /app/data && \
-    chmod 755 /app/data
-
-# 创建非 root 用户
-RUN useradd -m -u 1000 appuser && \
-    chown -R appuser:appuser /app
-
-# 切换到非 root 用户
-USER appuser
+# 创建数据目录（以 root 用户运行）
+RUN mkdir -p /app/data
 
 # 设置环境变量
 ENV PYTHONIOENCODING=utf-8 \
