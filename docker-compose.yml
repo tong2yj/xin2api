@@ -7,8 +7,7 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: catiecli-backend
-    ports:
-      - '${PORT:-10601}:${PORT:-10601}'
+    network_mode: host
     volumes:
       - ./data:/app/data
     env_file:
