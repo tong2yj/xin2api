@@ -310,7 +310,7 @@ docker-compose logs -f backend
 ```bash
 # 获取配置
 curl -H "Authorization: Bearer {token}" \
-  http://localhost:5001/api/manage/config
+  http://localhost:10601/api/manage/config
 
 # 验证响应中不包含已删除的字段
 ```

@@ -181,12 +181,12 @@ docker-compose logs -f backend
 
 # 4. 测试凭证列表
 curl -H "Authorization: Bearer {token}" \
-  http://localhost:5001/api/admin/credentials
+  http://localhost:10601/api/admin/credentials
 
 # 5. 测试删除桥接凭证
 curl -X DELETE \
   -H "Authorization: Bearer {token}" \
-  http://localhost:5001/api/admin/credentials/gcli_test.json
+  http://localhost:10601/api/admin/credentials/gcli_test.json
 ```
 
 ### 2. 前端测试

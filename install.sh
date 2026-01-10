@@ -54,7 +54,7 @@ cat > .env << EOF
 ADMIN_USERNAME=admin
 ADMIN_PASSWORD=$ADMIN_PASSWORD
 SECRET_KEY=$SECRET_KEY
-PORT=5001
+PORT=10601
 EOF
 
 echo "✅ 配置文件已创建"
@@ -75,7 +75,7 @@ echo "========================================="
 echo "✅ CatieCli 安装完成！"
 echo "========================================="
 echo ""
-echo "🌐 访问地址: http://$IP:5001"
+echo "🌐 访问地址: http://$IP:10601"
 echo "👤 用户名: admin"
 echo "🔑 密码: $ADMIN_PASSWORD"
 echo ""

@@ -950,7 +950,7 @@ async def test_concurrent_quota_check():
 
 ```bash
 # 使用 locust 或 k6 进行压力测试
-locust -f loadtest.py --host=http://localhost:5001
+locust -f loadtest.py --host=http://localhost:10601
 ```
 
 ---

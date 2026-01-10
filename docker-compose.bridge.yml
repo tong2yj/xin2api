@@ -32,6 +32,7 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+      start_period: 5s
 
   # CatieCli 后端服务
   catiecli-backend:
@@ -40,9 +41,9 @@ services:
       dockerfile: backend/Dockerfile
     container_name: catiecli-backend
     ports:
-      - "5001:5001"
+      - "10601:10601"
     environment:
-      - PORT=5001
+      - PORT=10601
       - DATABASE_URL=sqlite+aiosqlite:///./data/gemini_proxy.db
       - SECRET_KEY=${SECRET_KEY:-your-super-secret-key-change-this}
       - ADMIN_USERNAME=${ADMIN_USERNAME:-admin}
@@ -60,6 +61,12 @@ services:
       gcli2api:
         condition: service_healthy
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:10601/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
 
   # CatieCli 前端服务
   catiecli-frontend:
@@ -72,8 +79,15 @@ services:
     networks:
       - catie-network
     depends_on:
-      - catiecli-backend
+      catiecli-backend:
+        condition: service_healthy
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
 
 networks:
   catie-network:
@@ -81,5 +95,9 @@ networks:
 
 volumes:
   gcli2api-creds:
+    driver: local
   gcli2api-logs:
+    driver: local
   catiecli-data:
+    driver: local
+

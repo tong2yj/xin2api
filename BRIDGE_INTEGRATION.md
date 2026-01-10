@@ -45,7 +45,7 @@ docker-compose -f docker-compose.bridge.yml up -d
 
 该配置会同时启动：
 - `gcli2api` 服务 (端口 7861)
-- `catiecli-backend` 服务 (端口 5001)
+- `catiecli-backend` 服务 (端口 10601)
 - `catiecli-frontend` 服务 (端口 3000)
 
 ---
