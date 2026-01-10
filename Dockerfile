@@ -66,5 +66,5 @@ EXPOSE 10601
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:${PORT}/health || exit 1
 
-# 启动命令
-CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT}"]
+# 启动命令（确保数据目录权限正确）
+CMD ["sh", "-c", "chmod -R 777 /app/data 2>/dev/null || true && uvicorn app.main:app --host 0.0.0.0 --port ${PORT}"]
