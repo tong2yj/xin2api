@@ -1380,3 +1380,175 @@ async def delete_openai_endpoint(
 
     return {"message": "端点删除成功"}
 
+
+# ===== GeminiCLI 和 Antigravity 端点统计 =====
+
+@router.get("/gcli-endpoints")
+async def get_gcli_endpoints_stats(
+    user: User = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db)
+):
+    """获取 GeminiCLI 端点统计信息（仅管理员）"""
+    from app.services.gcli2api_bridge import gcli2api_bridge
+
+    # 检查服务是否启用
+    if not settings.enable_gcli2api_bridge:
+        return {
+            "enabled": False,
+            "name": "GeminiCLI",
+            "total_credentials": 0,
+            "active_credentials": 0,
+            "disabled_credentials": 0,
+            "total_requests": 0,
+            "failed_requests": 0,
+            "last_hour_requests": 0,
+            "success_rate": 0,
+            "credentials": []
+        }
+
+    # 1. 从 gcli2api 获取凭证状态
+    try:
+        credentials = await gcli2api_bridge.get_gcli_credentials()
+    except Exception as e:
+        log_error("GeminiCLI", f"获取凭证失败: {e}")
+        credentials = []
+
+    # 2. 计算今天的开始时间（UTC 07:00）
+    now = datetime.utcnow()
+    reset_time_utc = now.replace(hour=7, minute=0, second=0, microsecond=0)
+    start_of_day = reset_time_utc if now >= reset_time_utc else reset_time_utc - timedelta(days=1)
+
+    # 3. 从 usage_logs 统计 GeminiCLI 的调用情况（今天）
+    # 通过 endpoint 字段判断（包含 gcli 或 gemini-cli）
+    total_result = await db.execute(
+        select(func.count(UsageLog.id))
+        .where(UsageLog.created_at >= start_of_day)
+        .where(or_(
+            UsageLog.endpoint.like('%gcli%'),
+            UsageLog.endpoint.like('%gemini-cli%')
+        ))
+    )
+    total_requests = total_result.scalar() or 0
+
+    # 4. 统计失败次数
+    failed_result = await db.execute(
+        select(func.count(UsageLog.id))
+        .where(UsageLog.created_at >= start_of_day)
+        .where(or_(
+            UsageLog.endpoint.like('%gcli%'),
+            UsageLog.endpoint.like('%gemini-cli%')
+        ))
+        .where(UsageLog.status_code != 200)
+    )
+    failed_requests = failed_result.scalar() or 0
+
+    # 5. 统计最近1小时的请求
+    hour_ago = now - timedelta(hours=1)
+    hour_result = await db.execute(
+        select(func.count(UsageLog.id))
+        .where(UsageLog.created_at >= hour_ago)
+        .where(or_(
+            UsageLog.endpoint.like('%gcli%'),
+            UsageLog.endpoint.like('%gemini-cli%')
+        ))
+    )
+    last_hour_requests = hour_result.scalar() or 0
+
+    # 6. 计算成功率
+    success_rate = 0
+    if total_requests > 0:
+        success_rate = round((total_requests - failed_requests) / total_requests * 100, 1)
+
+    return {
+        "enabled": True,
+        "name": "GeminiCLI",
+        "total_credentials": len(credentials),
+        "active_credentials": sum(1 for c in credentials if not c.get('disabled')),
+        "disabled_credentials": sum(1 for c in credentials if c.get('disabled')),
+        "total_requests": total_requests,
+        "failed_requests": failed_requests,
+        "last_hour_requests": last_hour_requests,
+        "success_rate": success_rate,
+        "credentials": credentials[:5]  # 只返回前5个凭证作为预览
+    }
+
+
+@router.get("/antigravity-endpoints")
+async def get_antigravity_endpoints_stats(
+    user: User = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db)
+):
+    """获取 Antigravity 端点统计信息（仅管理员）"""
+    from app.services.gcli2api_bridge import gcli2api_bridge
+
+    # 检查服务是否启用
+    if not settings.enable_gcli2api_bridge:
+        return {
+            "enabled": False,
+            "name": "Antigravity",
+            "total_credentials": 0,
+            "active_credentials": 0,
+            "disabled_credentials": 0,
+            "total_requests": 0,
+            "failed_requests": 0,
+            "last_hour_requests": 0,
+            "success_rate": 0,
+            "credentials": []
+        }
+
+    # 1. 从 gcli2api 获取凭证状态
+    try:
+        credentials = await gcli2api_bridge.get_antigravity_credentials()
+    except Exception as e:
+        log_error("Antigravity", f"获取凭证失败: {e}")
+        credentials = []
+
+    # 2. 计算今天的开始时间（UTC 07:00）
+    now = datetime.utcnow()
+    reset_time_utc = now.replace(hour=7, minute=0, second=0, microsecond=0)
+    start_of_day = reset_time_utc if now >= reset_time_utc else reset_time_utc - timedelta(days=1)
+
+    # 3. 从 usage_logs 统计 Antigravity 的调用情况（今天）
+    total_result = await db.execute(
+        select(func.count(UsageLog.id))
+        .where(UsageLog.created_at >= start_of_day)
+        .where(UsageLog.endpoint.like('%antigravity%'))
+    )
+    total_requests = total_result.scalar() or 0
+
+    # 4. 统计失败次数
+    failed_result = await db.execute(
+        select(func.count(UsageLog.id))
+        .where(UsageLog.created_at >= start_of_day)
+        .where(UsageLog.endpoint.like('%antigravity%'))
+        .where(UsageLog.status_code != 200)
+    )
+    failed_requests = failed_result.scalar() or 0
+
+    # 5. 统计最近1小时的请求
+    hour_ago = now - timedelta(hours=1)
+    hour_result = await db.execute(
+        select(func.count(UsageLog.id))
+        .where(UsageLog.created_at >= hour_ago)
+        .where(UsageLog.endpoint.like('%antigravity%'))
+    )
+    last_hour_requests = hour_result.scalar() or 0
+
+    # 6. 计算成功率
+    success_rate = 0
+    if total_requests > 0:
+        success_rate = round((total_requests - failed_requests) / total_requests * 100, 1)
+
+    return {
+        "enabled": True,
+        "name": "Antigravity",
+        "total_credentials": len(credentials),
+        "active_credentials": sum(1 for c in credentials if not c.get('disabled')),
+        "disabled_credentials": sum(1 for c in credentials if c.get('disabled')),
+        "total_requests": total_requests,
+        "failed_requests": failed_requests,
+        "last_hour_requests": last_hour_requests,
+        "success_rate": success_rate,
+        "credentials": credentials[:5]  # 只返回前5个凭证作为预览
+    }
+

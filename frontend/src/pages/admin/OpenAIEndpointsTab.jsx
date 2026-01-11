@@ -1,6 +1,7 @@
 import { Plus, Save, Trash2, RefreshCw } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import api from '../../api'
+import adminApi from '../../api/admin'
 
 export default function OpenAIEndpointsTab() {
   const [endpoints, setEndpoints] = useState([])
@@ -15,9 +16,14 @@ export default function OpenAIEndpointsTab() {
     is_active: true,
     priority: 0
   })
+  const [gcliStats, setGcliStats] = useState(null)
+  const [antigravityStats, setAntigravityStats] = useState(null)
+  const [statsLoading, setStatsLoading] = useState(true)
 
   useEffect(() => {
     fetchEndpoints()
+    fetchGcliStats()
+    fetchAntigravityStats()
   }, [])
 
   const fetchEndpoints = async () => {
@@ -29,6 +35,28 @@ export default function OpenAIEndpointsTab() {
       setMessage({ type: 'error', text: '获取端点列表失败' })
     } finally {
       setLoading(false)
+    }
+  }
+
+  const fetchGcliStats = async () => {
+    try {
+      const res = await adminApi.endpoints.gcli.getStats()
+      setGcliStats(res.data)
+    } catch (err) {
+      console.error('获取 GeminiCLI 统计失败', err)
+      setGcliStats({ enabled: false })
+    } finally {
+      setStatsLoading(false)
+    }
+  }
+
+  const fetchAntigravityStats = async () => {
+    try {
+      const res = await adminApi.endpoints.antigravity.getStats()
+      setAntigravityStats(res.data)
+    } catch (err) {
+      console.error('获取 Antigravity 统计失败', err)
+      setAntigravityStats({ enabled: false })
     }
   }
 
@@ -101,6 +129,31 @@ export default function OpenAIEndpointsTab() {
 
   return (
     <div className="space-y-6 animate-fade-in">
+      {/* 桥接端点统计卡片 */}
+      {!statsLoading && (gcliStats?.enabled || antigravityStats?.enabled) && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+          {/* GeminiCLI 卡片 */}
+          {gcliStats?.enabled && (
+            <EndpointStatCard
+              name="GeminiCLI"
+              stats={gcliStats}
+              icon="🔮"
+              color="blue"
+            />
+          )}
+
+          {/* Antigravity 卡片 */}
+          {antigravityStats?.enabled && (
+            <EndpointStatCard
+              name="Antigravity"
+              stats={antigravityStats}
+              icon="🚀"
+              color="purple"
+            />
+          )}
+        </div>
+      )}
+
       {message && (
         <div className={`p-4 rounded-lg flex items-center gap-2 ${message.type === 'success' ? 'bg-green-600/20 text-green-400' : 'bg-red-600/20 text-red-400'}`}>
           {message.text}
@@ -293,6 +346,120 @@ export default function OpenAIEndpointsTab() {
           <li>• 支持任何 OpenAI 兼容格式的 API（如 DeepSeek、通义千问等）</li>
         </ul>
       </div>
+    </div>
+  )
+}
+
+// 端点统计卡片组件
+function EndpointStatCard({ name, stats, icon, color }) {
+  if (!stats) {
+    return (
+      <div className="bg-dark-800 border border-dark-600 rounded-xl p-6">
+        <div className="flex items-center justify-center text-dark-400">
+          <RefreshCw className="animate-spin mr-2" size={20} /> 加载中...
+        </div>
+      </div>
+    )
+  }
+
+  const colorClasses = {
+    blue: {
+      border: 'border-blue-600/30',
+      bg: 'bg-blue-600/10',
+      text: 'text-blue-400',
+      hover: 'hover:border-blue-500/50'
+    },
+    purple: {
+      border: 'border-purple-600/30',
+      bg: 'bg-purple-600/10',
+      text: 'text-purple-400',
+      hover: 'hover:border-purple-500/50'
+    },
+    green: {
+      border: 'border-green-600/30',
+      bg: 'bg-green-600/10',
+      text: 'text-green-400',
+      hover: 'hover:border-green-500/50'
+    }
+  }
+
+  const colors = colorClasses[color] || colorClasses.blue
+
+  return (
+    <div className={`bg-dark-800 border ${colors.border} ${colors.bg} rounded-xl p-6 ${colors.hover} transition-colors`}>
+      {/* 标题 */}
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-3">
+          <span className="text-3xl">{icon}</span>
+          <div>
+            <h3 className="text-xl font-semibold text-white">{name}</h3>
+            <p className="text-dark-400 text-sm">桥接端点</p>
+          </div>
+        </div>
+        {/* 健康状态指示器 */}
+        <div className="flex items-center gap-2">
+          <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
+          <span className="text-green-400 text-sm">运行中</span>
+        </div>
+      </div>
+
+      {/* 统计数据 */}
+      <div className="grid grid-cols-2 gap-3">
+        {/* 今日请求 */}
+        <div className="bg-dark-900/50 rounded-lg p-3">
+          <p className="text-dark-500 text-xs mb-1">今日请求</p>
+          <p className="text-2xl font-bold text-white">{stats.total_requests || 0}</p>
+          <p className="text-dark-400 text-xs mt-1">
+            最近1小时: <span className={colors.text}>{stats.last_hour_requests || 0}</span>
+          </p>
+        </div>
+
+        {/* 失败次数 */}
+        <div className="bg-dark-900/50 rounded-lg p-3">
+          <p className="text-dark-500 text-xs mb-1">失败次数</p>
+          <p className="text-2xl font-bold text-red-400">{stats.failed_requests || 0}</p>
+          <p className="text-dark-400 text-xs mt-1">
+            成功率: <span className="text-green-400">{stats.success_rate || 0}%</span>
+          </p>
+        </div>
+
+        {/* 可用凭证 */}
+        <div className="bg-dark-900/50 rounded-lg p-3">
+          <p className="text-dark-500 text-xs mb-1">可用凭证</p>
+          <p className="text-2xl font-bold text-green-400">{stats.active_credentials || 0}</p>
+          <p className="text-dark-400 text-xs mt-1">
+            总计: <span className="text-white">{stats.total_credentials || 0}</span>
+          </p>
+        </div>
+
+        {/* 禁用凭证 */}
+        <div className="bg-dark-900/50 rounded-lg p-3">
+          <p className="text-dark-500 text-xs mb-1">禁用凭证</p>
+          <p className="text-2xl font-bold text-yellow-400">{stats.disabled_credentials || 0}</p>
+          <p className="text-dark-400 text-xs mt-1">
+            需要关注
+          </p>
+        </div>
+      </div>
+
+      {/* 凭证预览 */}
+      {stats.credentials && stats.credentials.length > 0 && (
+        <div className="mt-4 pt-4 border-t border-dark-700">
+          <p className="text-dark-500 text-xs mb-2">最近凭证状态</p>
+          <div className="space-y-1">
+            {stats.credentials.slice(0, 3).map((cred, idx) => (
+              <div key={idx} className="flex items-center justify-between text-xs">
+                <span className="text-dark-400 truncate flex-1">
+                  {cred.user_email || cred.filename}
+                </span>
+                <span className={`ml-2 px-2 py-0.5 rounded ${cred.disabled ? 'bg-red-600/20 text-red-400' : 'bg-green-600/20 text-green-400'}`}>
+                  {cred.disabled ? '禁用' : '正常'}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

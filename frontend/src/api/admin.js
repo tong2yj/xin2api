@@ -43,6 +43,16 @@ export const adminApi = {
     updateDefaultQuota: (quota) => api.post('/api/admin/settings/default-quota', { quota }),
     batchQuota: (quota) => api.post('/api/admin/settings/batch-quota', { quota }),
   },
+
+  // 端点统计
+  endpoints: {
+    gcli: {
+      getStats: () => api.get('/api/manage/gcli-endpoints'),
+    },
+    antigravity: {
+      getStats: () => api.get('/api/manage/antigravity-endpoints'),
+    },
+  },
 };
 
 export default adminApi;
