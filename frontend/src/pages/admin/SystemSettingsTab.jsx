@@ -18,8 +18,22 @@ export default function SystemSettingsTab() {
   const [batchQuota, setBatchQuota] = useState('');
   const [confirmModal, setConfirmModal] = useState({ open: false, title: '', message: '', onConfirm: () => {} });
 
+  // 模型过滤配置状态
+  const [modelFilterConfig, setModelFilterConfig] = useState({
+    mode: 'disabled',
+    model_tier_limit: '2.5,3',
+    enable_claude_models: true,
+    enable_thinking_models: true,
+    enable_search_models: true,
+    enabled_models: []
+  });
+  const [availableModels, setAvailableModels] = useState([]);
+  const [modelFilterLoading, setModelFilterLoading] = useState(true);
+
   useEffect(() => {
     fetchConfig();
+    fetchModelFilterConfig();
+    fetchAvailableModels();
   }, []);
 
   const fetchConfig = async () => {
@@ -31,6 +45,27 @@ export default function SystemSettingsTab() {
       toast.error('加载配置失败');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchModelFilterConfig = async () => {
+    try {
+      const res = await api.get('/api/admin/model-filter-config');
+      setModelFilterConfig(res.data);
+    } catch (err) {
+      console.error(err);
+      toast.error('加载模型过滤配置失败');
+    } finally {
+      setModelFilterLoading(false);
+    }
+  };
+
+  const fetchAvailableModels = async () => {
+    try {
+      const res = await api.get('/api/admin/available-models');
+      setAvailableModels(res.data.models || []);
+    } catch (err) {
+      console.error(err);
     }
   };
 
@@ -77,6 +112,24 @@ export default function SystemSettingsTab() {
         }
       },
     });
+  };
+
+  const handleSaveModelFilter = async () => {
+    try {
+      await api.post('/api/admin/model-filter-config', modelFilterConfig);
+      toast.success('模型过滤配置已更新');
+    } catch (err) {
+      toast.error('保存失败: ' + (err.response?.data?.detail || err.message));
+    }
+  };
+
+  const toggleModelInWhitelist = (modelId) => {
+    setModelFilterConfig(prev => ({
+      ...prev,
+      enabled_models: prev.enabled_models.includes(modelId)
+        ? prev.enabled_models.filter(m => m !== modelId)
+        : [...prev.enabled_models, modelId]
+    }));
   };
 
   if (loading) {
@@ -206,6 +259,170 @@ export default function SystemSettingsTab() {
               </div>
             )}
           </div>
+        </div>
+      </Card>
+
+      {/* 模型访问控制 */}
+      <Card>
+        <div className="space-y-6">
+          <div>
+            <h2 className="text-xl font-bold text-dark-50 mb-2">🎯 模型访问控制</h2>
+            <p className="text-dark-400 text-sm">配置所有用户可见和可使用的模型列表</p>
+          </div>
+
+          {modelFilterLoading ? (
+            <div className="text-center py-8 text-dark-400">加载中...</div>
+          ) : (
+            <>
+              {/* 过滤模式选择 */}
+              <div>
+                <label className="block text-sm font-medium text-dark-200 mb-3">过滤模式</label>
+                <div className="space-y-2">
+                  <label className="flex items-center gap-3 p-3 rounded-lg border border-dark-700 hover:border-dark-600 cursor-pointer transition-colors">
+                    <input
+                      type="radio"
+                      name="filter-mode"
+                      value="disabled"
+                      checked={modelFilterConfig.mode === 'disabled'}
+                      onChange={(e) => setModelFilterConfig({ ...modelFilterConfig, mode: e.target.value })}
+                      className="text-primary-500 focus:ring-primary-500"
+                    />
+                    <div>
+                      <div className="font-medium text-dark-100">不过滤 (默认)</div>
+                      <div className="text-xs text-dark-400">显示所有可用模型</div>
+                    </div>
+                  </label>
+
+                  <label className="flex items-center gap-3 p-3 rounded-lg border border-dark-700 hover:border-dark-600 cursor-pointer transition-colors">
+                    <input
+                      type="radio"
+                      name="filter-mode"
+                      value="rules"
+                      checked={modelFilterConfig.mode === 'rules'}
+                      onChange={(e) => setModelFilterConfig({ ...modelFilterConfig, mode: e.target.value })}
+                      className="text-primary-500 focus:ring-primary-500"
+                    />
+                    <div>
+                      <div className="font-medium text-dark-100">规则过滤</div>
+                      <div className="text-xs text-dark-400">根据模型类型和功能过滤</div>
+                    </div>
+                  </label>
+
+                  <label className="flex items-center gap-3 p-3 rounded-lg border border-dark-700 hover:border-dark-600 cursor-pointer transition-colors">
+                    <input
+                      type="radio"
+                      name="filter-mode"
+                      value="whitelist"
+                      checked={modelFilterConfig.mode === 'whitelist'}
+                      onChange={(e) => setModelFilterConfig({ ...modelFilterConfig, mode: e.target.value })}
+                      className="text-primary-500 focus:ring-primary-500"
+                    />
+                    <div>
+                      <div className="font-medium text-dark-100">白名单模式</div>
+                      <div className="text-xs text-dark-400">精确指定可用模型列表</div>
+                    </div>
+                  </label>
+                </div>
+              </div>
+
+              {/* 规则过滤配置 */}
+              {modelFilterConfig.mode === 'rules' && (
+                <div className="bg-dark-800/30 rounded-xl p-5 border border-white/5 space-y-4 animate-fade-in">
+                  <h3 className="font-semibold text-dark-50 mb-3">过滤规则</h3>
+
+                  <div>
+                    <label className="block text-sm font-medium text-dark-200 mb-2">允许的模型层级</label>
+                    <div className="flex gap-4">
+                      <label className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          checked={modelFilterConfig.model_tier_limit.includes('2.5')}
+                          onChange={(e) => {
+                            const tiers = modelFilterConfig.model_tier_limit.split(',');
+                            const newTiers = e.target.checked
+                              ? [...new Set([...tiers, '2.5'])]
+                              : tiers.filter(t => t !== '2.5');
+                            setModelFilterConfig({ ...modelFilterConfig, model_tier_limit: newTiers.join(',') });
+                          }}
+                          className="rounded text-primary-500 focus:ring-primary-500"
+                        />
+                        <span className="text-dark-300">Gemini 2.5</span>
+                      </label>
+                      <label className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          checked={modelFilterConfig.model_tier_limit.includes('3')}
+                          onChange={(e) => {
+                            const tiers = modelFilterConfig.model_tier_limit.split(',');
+                            const newTiers = e.target.checked
+                              ? [...new Set([...tiers, '3'])]
+                              : tiers.filter(t => t !== '3');
+                            setModelFilterConfig({ ...modelFilterConfig, model_tier_limit: newTiers.join(',') });
+                          }}
+                          className="rounded text-primary-500 focus:ring-primary-500"
+                        />
+                        <span className="text-dark-300">Gemini 3.0</span>
+                      </label>
+                    </div>
+                  </div>
+
+                  <SettingToggle
+                    label="启用 Claude 模型"
+                    desc="允许用户访问 Claude 系列模型"
+                    checked={modelFilterConfig.enable_claude_models}
+                    onChange={(v) => setModelFilterConfig({ ...modelFilterConfig, enable_claude_models: v })}
+                  />
+
+                  <SettingToggle
+                    label="启用 Thinking 后缀模型"
+                    desc="允许使用带 -thinking、-maxthinking、-nothinking 后缀的模型"
+                    checked={modelFilterConfig.enable_thinking_models}
+                    onChange={(v) => setModelFilterConfig({ ...modelFilterConfig, enable_thinking_models: v })}
+                  />
+
+                  <SettingToggle
+                    label="启用 Search 后缀模型"
+                    desc="允许使用带 -search 后缀的搜索增强模型"
+                    checked={modelFilterConfig.enable_search_models}
+                    onChange={(v) => setModelFilterConfig({ ...modelFilterConfig, enable_search_models: v })}
+                  />
+                </div>
+              )}
+
+              {/* 白名单模式配置 */}
+              {modelFilterConfig.mode === 'whitelist' && (
+                <div className="bg-dark-800/30 rounded-xl p-5 border border-white/5 animate-fade-in">
+                  <h3 className="font-semibold text-dark-50 mb-3">选择可用模型</h3>
+                  <p className="text-dark-400 text-sm mb-4">已选择 {modelFilterConfig.enabled_models.length} 个模型</p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-96 overflow-y-auto">
+                    {availableModels.map(model => (
+                      <label
+                        key={model}
+                        className="flex items-center gap-2 p-2 rounded-lg hover:bg-dark-700/30 cursor-pointer transition-colors"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={modelFilterConfig.enabled_models.includes(model)}
+                          onChange={() => toggleModelInWhitelist(model)}
+                          className="rounded text-primary-500 focus:ring-primary-500"
+                        />
+                        <span className="text-dark-300 text-sm font-mono">{model}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* 保存按钮 */}
+              <Button
+                onClick={handleSaveModelFilter}
+                className="w-full"
+                icon={Save}
+              >
+                保存模型过滤配置
+              </Button>
+            </>
+          )}
         </div>
       </Card>
 

@@ -68,6 +68,14 @@ class Settings(BaseSettings):
     # 三端点轮询配置
     endpoint_priority: Union[str, List[str]] = "gcli2api,antigravity,openai"  # 端点优先级顺序
 
+    # 模型访问控制
+    model_filter_mode: str = "disabled"  # 过滤模式: disabled(不过滤) / rules(规则过滤) / whitelist(白名单)
+    model_tier_limit: str = "2.5,3"  # 允许的模型层级（逗号分隔）
+    enable_claude_models: bool = True  # 是否启用 Claude 模型
+    enable_thinking_models: bool = True  # 是否启用 Thinking 后缀模型
+    enable_search_models: bool = True  # 是否启用 Search 后缀模型
+    enabled_models: str = ""  # 白名单模式下启用的模型列表（JSON数组字符串）
+
     @field_validator('endpoint_priority', mode='before')
     @classmethod
     def parse_endpoint_priority(cls, v):
@@ -97,6 +105,12 @@ PERSISTENT_CONFIG_KEYS = [
     "announcement_title",
     "announcement_content",
     "announcement_read_seconds",
+    "model_filter_mode",
+    "model_tier_limit",
+    "enable_claude_models",
+    "enable_thinking_models",
+    "enable_search_models",
+    "enabled_models",
 ]
 
 

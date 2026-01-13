@@ -1121,3 +1121,103 @@ async def batch_update_quota(
     await db.commit()
     await notify_user_update()
     return {"message": f"已将所有用户配额设为 {data.quota}"}
+
+
+# ===== 模型过滤配置 =====
+class ModelFilterConfig(BaseModel):
+    mode: str  # disabled, rules, whitelist
+    model_tier_limit: str
+    enable_claude_models: bool
+    enable_thinking_models: bool
+    enable_search_models: bool
+    enabled_models: list = []
+
+
+@router.get("/model-filter-config")
+async def get_model_filter_config_api(
+    admin: User = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db)
+):
+    """获取模型过滤配置"""
+    from app.routers.proxy import get_model_filter_config
+    config = await get_model_filter_config(db)
+    return config
+
+
+@router.post("/model-filter-config")
+async def update_model_filter_config(
+    config: ModelFilterConfig,
+    admin: User = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db)
+):
+    """更新模型过滤配置"""
+    from app.config import save_config_to_db
+    import json
+
+    # 保存到数据库
+    await save_config_to_db("model_filter_mode", config.mode)
+    await save_config_to_db("model_tier_limit", config.model_tier_limit)
+    await save_config_to_db("enable_claude_models", str(config.enable_claude_models))
+    await save_config_to_db("enable_thinking_models", str(config.enable_thinking_models))
+    await save_config_to_db("enable_search_models", str(config.enable_search_models))
+    await save_config_to_db("enabled_models", json.dumps(config.enabled_models))
+
+    # 同时更新内存配置
+    from app.config import settings
+    settings.model_filter_mode = config.mode
+    settings.model_tier_limit = config.model_tier_limit
+    settings.enable_claude_models = config.enable_claude_models
+    settings.enable_thinking_models = config.enable_thinking_models
+    settings.enable_search_models = config.enable_search_models
+
+    return {"message": "模型过滤配置已更新"}
+
+
+@router.get("/available-models")
+async def get_available_models(
+    admin: User = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db)
+):
+    """获取所有可用模型列表（用于白名单配置）"""
+    # 返回所有可能的模型列表供前端选择
+    base_models = [
+        "gemini-2.5-pro",
+        "gemini-2.5-flash",
+        "gemini-3-pro-preview",
+        "gemini-3-flash-preview",
+    ]
+
+    thinking_suffixes = ["-maxthinking", "-nothinking"]
+    search_suffix = "-search"
+
+    models = []
+    for base in base_models:
+        models.append(base)
+        for suffix in thinking_suffixes:
+            models.append(f"{base}{suffix}")
+        models.append(f"{base}{search_suffix}")
+        for suffix in thinking_suffixes:
+            models.append(f"{base}{suffix}{search_suffix}")
+
+    # Image 模型
+    models.append("gemini-2.5-flash-image")
+
+    # Antigravity 特有模型
+    antigravity_models = [
+        "gemini-3-pro-low",
+        "gemini-3-pro-high",
+        "gemini-3-pro-image",
+        "gemini-2.5-flash-lite",
+    ]
+    models.extend(antigravity_models)
+
+    # Claude 模型
+    claude_models = [
+        "claude-sonnet-4-5",
+        "claude-sonnet-4-5-thinking",
+        "claude-opus-4-5-thinking",
+    ]
+    models.extend(claude_models)
+
+    return {"models": models}
+

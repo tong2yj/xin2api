@@ -42,3 +42,7 @@ frontend/dist/
 # 日志
 *.log
 logs/
+
+# Claude CLI 临时文件
+tmpclaude-*
+.claude/settings.local.json

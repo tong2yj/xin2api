@@ -44,6 +44,101 @@ def extract_status_code(error_str: str, default: int = 500) -> int:
     return default
 
 
+async def get_model_filter_config(db: AsyncSession) -> dict:
+    """从配置中读取模型过滤规则"""
+    from app.models.user import SystemConfig
+
+    config = {
+        "mode": settings.model_filter_mode,
+        "enabled_models": [],
+        "model_tier_limit": settings.model_tier_limit,
+        "enable_claude_models": settings.enable_claude_models,
+        "enable_thinking_models": settings.enable_thinking_models,
+        "enable_search_models": settings.enable_search_models,
+    }
+
+    # 从数据库读取持久化配置（优先级更高）
+    result = await db.execute(
+        select(SystemConfig).where(
+            SystemConfig.key.in_([
+                "model_filter_mode",
+                "enabled_models",
+                "model_tier_limit",
+                "enable_claude_models",
+                "enable_thinking_models",
+                "enable_search_models"
+            ])
+        )
+    )
+    db_configs = {c.key: c.value for c in result.scalars().all()}
+
+    # 应用数据库配置覆盖
+    if "model_filter_mode" in db_configs:
+        config["mode"] = db_configs["model_filter_mode"]
+    if "model_tier_limit" in db_configs:
+        config["model_tier_limit"] = db_configs["model_tier_limit"]
+    if "enable_claude_models" in db_configs:
+        config["enable_claude_models"] = db_configs["enable_claude_models"].lower() in ('true', '1', 'yes')
+    if "enable_thinking_models" in db_configs:
+        config["enable_thinking_models"] = db_configs["enable_thinking_models"].lower() in ('true', '1', 'yes')
+    if "enable_search_models" in db_configs:
+        config["enable_search_models"] = db_configs["enable_search_models"].lower() in ('true', '1', 'yes')
+    if "enabled_models" in db_configs and db_configs["enabled_models"]:
+        try:
+            config["enabled_models"] = json.loads(db_configs["enabled_models"])
+        except json.JSONDecodeError:
+            config["enabled_models"] = []
+
+    return config
+
+
+def apply_model_filter(models: list, config: dict) -> list:
+    """应用模型过滤规则"""
+    mode = config["mode"]
+
+    # 模式1: 不过滤
+    if mode == "disabled":
+        return models
+
+    # 模式2: 白名单模式（精确匹配）
+    if mode == "whitelist" and config["enabled_models"]:
+        enabled_set = set(config["enabled_models"])
+        return [m for m in models if m["id"] in enabled_set]
+
+    # 模式3: 规则过滤
+    if mode == "rules":
+        allowed_tiers = config["model_tier_limit"].split(",") if config["model_tier_limit"] else []
+        filtered = []
+
+        for model in models:
+            model_id = model["id"]
+
+            # 检查层级限制
+            if "gemini-3" in model_id and "3" not in allowed_tiers:
+                continue
+            if "gemini-2.5" in model_id and "2.5" not in allowed_tiers:
+                continue
+
+            # 检查 Claude 模型
+            if "claude" in model_id and not config["enable_claude_models"]:
+                continue
+
+            # 检查 thinking 后缀
+            if "thinking" in model_id and not config["enable_thinking_models"]:
+                continue
+
+            # 检查 search 后缀
+            if "search" in model_id and not config["enable_search_models"]:
+                continue
+
+            filtered.append(model)
+
+        return filtered
+
+    # 默认不过滤
+    return models
+
+
 async def get_user_from_api_key(request: Request, db: AsyncSession = Depends(get_db)) -> User:
     """从请求中提取API Key并验证用户"""
     api_key = None
@@ -676,7 +771,11 @@ async def list_models(request: Request, user: User = Depends(get_user_from_api_k
             log_warning("Models", f"从 {endpoint.name} 获取模型失败: {str(e)}")
             continue
 
-    return {"object": "list", "data": models}
+    # 应用模型过滤规则
+    filter_config = await get_model_filter_config(db)
+    filtered_models = apply_model_filter(models, filter_config)
+
+    return {"object": "list", "data": filtered_models}
 
 
 @router.post("/v1/chat/completions")
