@@ -53,6 +53,12 @@ export const adminApi = {
       getStats: () => api.get('/api/manage/antigravity-endpoints'),
     },
   },
+
+  // 配置管理
+  config: {
+    get: () => api.get('/api/manage/config'),
+    update: (data) => api.post('/api/manage/config', data),
+  },
 };
 
 export default adminApi;

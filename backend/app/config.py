@@ -111,6 +111,7 @@ PERSISTENT_CONFIG_KEYS = [
     "enable_thinking_models",
     "enable_search_models",
     "enabled_models",
+    "enable_gcli2api_bridge",
 ]
 
 

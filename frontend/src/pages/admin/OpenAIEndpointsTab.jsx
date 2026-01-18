@@ -19,11 +19,14 @@ export default function OpenAIEndpointsTab() {
   const [gcliStats, setGcliStats] = useState(null)
   const [antigravityStats, setAntigravityStats] = useState(null)
   const [statsLoading, setStatsLoading] = useState(true)
+  const [bridgeEnabled, setBridgeEnabled] = useState(true)
+  const [bridgeToggling, setBridgeToggling] = useState(false)
 
   useEffect(() => {
     fetchEndpoints()
     fetchGcliStats()
     fetchAntigravityStats()
+    fetchBridgeConfig()
   }, [])
 
   const fetchEndpoints = async () => {
@@ -57,6 +60,35 @@ export default function OpenAIEndpointsTab() {
     } catch (err) {
       console.error('获取 Antigravity 统计失败', err)
       setAntigravityStats({ enabled: false })
+    }
+  }
+
+  const fetchBridgeConfig = async () => {
+    try {
+      const res = await adminApi.config.get()
+      setBridgeEnabled(res.data.enable_gcli2api_bridge)
+    } catch (err) {
+      console.error('获取桥接配置失败', err)
+    }
+  }
+
+  const toggleBridge = async () => {
+    setBridgeToggling(true)
+    try {
+      const formData = new FormData()
+      formData.append('enable_gcli2api_bridge', !bridgeEnabled)
+
+      await adminApi.config.update(formData)
+      setBridgeEnabled(!bridgeEnabled)
+      setMessage({ type: 'success', text: `桥接反代已${!bridgeEnabled ? '启用' : '禁用'}` })
+
+      // 刷新统计数据
+      fetchGcliStats()
+      fetchAntigravityStats()
+    } catch (err) {
+      setMessage({ type: 'error', text: '切换失败: ' + (err.response?.data?.detail || err.message) })
+    } finally {
+      setBridgeToggling(false)
     }
   }
 
@@ -129,8 +161,34 @@ export default function OpenAIEndpointsTab() {
 
   return (
     <div className="space-y-6 animate-fade-in">
+      {/* 桥接反代控制区域 */}
+      {!statsLoading && (gcliStats?.enabled || antigravityStats?.enabled || !bridgeEnabled) && (
+        <div className="bg-dark-800 border border-dark-600 rounded-xl p-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className={`w-3 h-3 rounded-full ${bridgeEnabled ? 'bg-green-500 animate-pulse' : 'bg-gray-500'}`}></div>
+              <div>
+                <h3 className="text-lg font-semibold text-white">桥接反代服务</h3>
+                <p className="text-dark-400 text-sm">控制 GeminiCLI 和 Antigravity 端点的启用状态</p>
+              </div>
+            </div>
+            <button
+              onClick={toggleBridge}
+              disabled={bridgeToggling}
+              className={`px-6 py-2 rounded-lg font-semibold transition-colors ${
+                bridgeEnabled
+                  ? 'bg-green-600 hover:bg-green-700 text-white'
+                  : 'bg-gray-600 hover:bg-gray-700 text-white'
+              } ${bridgeToggling ? 'opacity-50 cursor-not-allowed' : ''}`}
+            >
+              {bridgeToggling ? '切换中...' : bridgeEnabled ? '已启用' : '已禁用'}
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* 桥接端点统计卡片 */}
-      {!statsLoading && (gcliStats?.enabled || antigravityStats?.enabled) && (
+      {!statsLoading && bridgeEnabled && (gcliStats?.enabled || antigravityStats?.enabled) && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
           {/* GeminiCLI 卡片 */}
           {gcliStats?.enabled && (
@@ -344,6 +402,7 @@ export default function OpenAIEndpointsTab() {
           <li>• 优先级高的端点会优先被选择使用</li>
           <li>• 禁用的端点不会被使用</li>
           <li>• 支持任何 OpenAI 兼容格式的 API（如 DeepSeek、通义千问等）</li>
+          <li>• 桥接反代开关控制 GeminiCLI 和 Antigravity 端点，不影响凭证上传功能</li>
         </ul>
       </div>
     </div>

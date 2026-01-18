@@ -898,6 +898,25 @@ async def get_public_config():
     }
 
 
+@router.get("/config")
+async def get_config(
+    user: User = Depends(get_current_admin)
+):
+    """获取管理员配置（仅管理员）"""
+    from app.config import settings
+    return {
+        "allow_registration": settings.allow_registration,
+        "require_approval": settings.require_approval,
+        "default_daily_quota": settings.default_daily_quota,
+        "credential_reward_quota": settings.credential_reward_quota,
+        "announcement_enabled": settings.announcement_enabled,
+        "announcement_title": settings.announcement_title,
+        "announcement_content": settings.announcement_content,
+        "announcement_read_seconds": settings.announcement_read_seconds,
+        "enable_gcli2api_bridge": settings.enable_gcli2api_bridge,
+    }
+
+
 @router.post("/config")
 async def update_config(
     allow_registration: Optional[bool] = Form(None),
@@ -908,6 +927,7 @@ async def update_config(
     announcement_title: Optional[str] = Form(None),
     announcement_content: Optional[str] = Form(None),
     announcement_read_seconds: Optional[int] = Form(None),
+    enable_gcli2api_bridge: Optional[bool] = Form(None),
     user: User = Depends(get_current_admin)
 ):
     """更新配置（持久化保存到数据库）"""
@@ -948,6 +968,12 @@ async def update_config(
         settings.announcement_read_seconds = announcement_read_seconds
         await save_config_to_db("announcement_read_seconds", announcement_read_seconds)
         updated["announcement_read_seconds"] = announcement_read_seconds
+
+    # 桥接反代开关
+    if enable_gcli2api_bridge is not None:
+        settings.enable_gcli2api_bridge = enable_gcli2api_bridge
+        await save_config_to_db("enable_gcli2api_bridge", enable_gcli2api_bridge)
+        updated["enable_gcli2api_bridge"] = enable_gcli2api_bridge
 
     return {"message": "配置已保存", "updated": updated}
 
