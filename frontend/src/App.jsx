@@ -1,15 +1,16 @@
+import { lazy, Suspense } from 'react';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import Announcement from './components/Announcement';
 import { FullPageLoading } from './components/common/Loading';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ToastProvider } from './contexts/ToastContext';
 
-// 页面导入
-import Admin from './pages/admin/index';
-import Dashboard from './pages/dashboard/index';
-import Login from './pages/Login';
-import OAuth from './pages/OAuth';
-import Register from './pages/Register';
+// 懒加载页面组件
+const Admin = lazy(() => import('./pages/admin/index'));
+const Dashboard = lazy(() => import('./pages/dashboard/index'));
+const Login = lazy(() => import('./pages/Login'));
+const OAuth = lazy(() => import('./pages/OAuth'));
+const Register = lazy(() => import('./pages/Register'));
 
 // 保留旧的导出以保持兼容性
 export { AuthContext, useAuth } from './contexts/AuthContext';
@@ -34,35 +35,37 @@ function ProtectedRoute({ children, adminOnly = false }) {
 
 function AppRoutes() {
   return (
-    <Routes>
-      <Route path="/login" element={<Login />} />
-      <Route path="/register" element={<Register />} />
-      <Route
-        path="/dashboard"
-        element={
-          <ProtectedRoute>
-            <Dashboard />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/admin"
-        element={
-          <ProtectedRoute adminOnly>
-            <Admin />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/oauth"
-        element={
-          <ProtectedRoute>
-            <OAuth />
-          </ProtectedRoute>
-        }
-      />
-      <Route path="/" element={<Navigate to="/dashboard" />} />
-    </Routes>
+    <Suspense fallback={<FullPageLoading />}>
+      <Routes>
+        <Route path="/login" element={<Login />} />
+        <Route path="/register" element={<Register />} />
+        <Route
+          path="/dashboard"
+          element={
+            <ProtectedRoute>
+              <Dashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin"
+          element={
+            <ProtectedRoute adminOnly>
+              <Admin />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/oauth"
+          element={
+            <ProtectedRoute>
+              <OAuth />
+            </ProtectedRoute>
+          }
+        />
+        <Route path="/" element={<Navigate to="/dashboard" />} />
+      </Routes>
+    </Suspense>
   );
 }
 

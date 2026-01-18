@@ -1,7 +1,9 @@
+import { memo } from 'react';
+
 /**
- * 通用卡片组件
+ * 通用卡片组件 - 使用 memo 优化渲染性能
  */
-export function Card({ children, className = '', padding = true }) {
+export const Card = memo(function Card({ children, className = '', padding = true }) {
   return (
     <div
       className={`
@@ -16,12 +18,12 @@ export function Card({ children, className = '', padding = true }) {
       {children}
     </div>
   );
-}
+});
 
 /**
- * 卡片标题
+ * 卡片标题 - 使用 memo 优化渲染性能
  */
-export function CardHeader({ children, icon: Icon, action }) {
+export const CardHeader = memo(function CardHeader({ children, icon: Icon, action }) {
   return (
     <div className="flex items-center justify-between mb-6">
       <h3 className="text-lg font-semibold text-dark-50 flex items-center gap-2.5">
@@ -31,6 +33,6 @@ export function CardHeader({ children, icon: Icon, action }) {
       {action}
     </div>
   );
-}
+});
 
 export default Card;

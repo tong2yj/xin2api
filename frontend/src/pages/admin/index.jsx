@@ -1,11 +1,15 @@
+import { lazy, Suspense } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import { Loading } from '../../components/common/Loading';
 import { AdminLayout } from './AdminLayout';
-import UsersTab from './UsersTab';
-import LogsTab from './LogsTab';
-import ErrorsTab from './ErrorsTab';
-import SystemSettingsTab from './SystemSettingsTab';
-import GlobalStatsTab from './GlobalStatsTab';
-import OpenAIEndpointsTab from './OpenAIEndpointsTab';
+
+// 懒加载 Tab 组件
+const UsersTab = lazy(() => import('./UsersTab'));
+const LogsTab = lazy(() => import('./LogsTab'));
+const ErrorsTab = lazy(() => import('./ErrorsTab'));
+const SystemSettingsTab = lazy(() => import('./SystemSettingsTab'));
+const GlobalStatsTab = lazy(() => import('./GlobalStatsTab'));
+const OpenAIEndpointsTab = lazy(() => import('./OpenAIEndpointsTab'));
 
 export default function Admin() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -35,7 +39,9 @@ export default function Admin() {
 
   return (
     <AdminLayout activeTab={activeTab} onTabChange={handleTabChange}>
-      {renderContent()}
+      <Suspense fallback={<Loading />}>
+        {renderContent()}
+      </Suspense>
     </AdminLayout>
   );
 }

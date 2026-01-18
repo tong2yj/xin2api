@@ -1,9 +1,32 @@
+import { memo } from 'react';
 import { ChevronDown, ChevronUp } from 'lucide-react';
+
+/**
+ * 表格行组件 - 使用 memo 优化渲染性能
+ */
+const TableRow = memo(({ row, columns, index }) => {
+  return (
+    <tr
+      className="group transition-colors hover:bg-white/[0.02]"
+    >
+      {columns.map((col) => (
+        <td
+          key={col.key}
+          className={`px-6 py-4 text-sm text-dark-300 ${col.className || ''}`}
+        >
+          {col.render ? col.render(row[col.key], row) : row[col.key]}
+        </td>
+      ))}
+    </tr>
+  );
+});
+
+TableRow.displayName = 'TableRow';
 
 /**
  * 通用表格组件
  */
-export function Table({
+export const Table = memo(function Table({
   columns,
   data,
   sortField,
@@ -68,19 +91,12 @@ export function Table({
               </tr>
             ) : (
               data.map((row, idx) => (
-                <tr 
+                <TableRow
                   key={row.id || idx}
-                  className="group transition-colors hover:bg-white/[0.02]"
-                >
-                  {columns.map((col) => (
-                    <td 
-                      key={col.key} 
-                      className={`px-6 py-4 text-sm text-dark-300 ${col.className || ''}`}
-                    >
-                      {col.render ? col.render(row[col.key], row) : row[col.key]}
-                    </td>
-                  ))}
-                </tr>
+                  row={row}
+                  columns={columns}
+                  index={idx}
+                />
               ))
             )}
           </tbody>
@@ -88,6 +104,6 @@ export function Table({
       </div>
     </div>
   );
-}
+});
 
 export default Table;

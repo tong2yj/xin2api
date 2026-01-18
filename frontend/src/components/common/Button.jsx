@@ -1,9 +1,10 @@
+import { memo } from 'react';
 import { RefreshCw } from 'lucide-react';
 
 /**
- * 通用按钮组件
+ * 通用按钮组件 - 使用 memo 优化渲染性能
  */
-export function Button({
+export const Button = memo(function Button({
   children,
   variant = 'primary', // primary, secondary, danger, success, warning, ghost
   size = 'md', // sm, md, lg
@@ -66,6 +67,6 @@ export function Button({
       {children && <span className="relative z-10 flex items-center gap-2">{children}</span>}
     </button>
   );
-}
+});
 
 export default Button;
