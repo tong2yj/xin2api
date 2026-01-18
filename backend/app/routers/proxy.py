@@ -604,20 +604,7 @@ async def handle_openai_endpoint(request: Request, user: User, db: AsyncSession,
             endpoint.last_error = last_error[:500]
             await db.commit()
 
-            # 记录错误日志
-            log = UsageLog(
-                user_id=user.id,
-                model=model,
-                endpoint="/v1/chat/completions",
-                status_code=e.response.status_code,
-                latency_ms=round((time.time() - start_time) * 1000, 1),
-                error_message=last_error[:2000],
-                client_ip=client_ip,
-                user_agent=user_agent
-            )
-            db.add(log)
-            await db.commit()
-
+            # 不记录失败日志到 UsageLog，只在所有端点都失败时才记录
             log_error("OpenAI Endpoint", f"{endpoint.name} 失败: {last_error}")
             continue
 
@@ -630,24 +617,28 @@ async def handle_openai_endpoint(request: Request, user: User, db: AsyncSession,
             endpoint.last_error = last_error[:500]
             await db.commit()
 
-            # 记录错误日志
-            log = UsageLog(
-                user_id=user.id,
-                model=model,
-                endpoint="/v1/chat/completions",
-                status_code=actual_status_code,
-                latency_ms=round((time.time() - start_time) * 1000, 1),
-                error_message=last_error[:2000],
-                client_ip=client_ip,
-                user_agent=user_agent
-            )
-            db.add(log)
-            await db.commit()
-
+            # 不记录失败日志到 UsageLog，只在所有端点都失败时才记录
             log_error("OpenAI Endpoint", f"{endpoint.name} 异常: {last_error}")
             continue
 
-    # 所有端点都失败了
+    # 所有端点都失败了，记录最后一次失败的日志
+    if last_error:
+        # 提取最后一次失败的状态码
+        last_status_code = extract_status_code(last_error, 503)
+
+        log = UsageLog(
+            user_id=user.id,
+            model=model,
+            endpoint="/v1/chat/completions",
+            status_code=last_status_code,
+            latency_ms=round((time.time() - start_time) * 1000, 1),
+            error_message=last_error[:2000],
+            client_ip=client_ip,
+            user_agent=user_agent
+        )
+        db.add(log)
+        await db.commit()
+
     raise HTTPException(status_code=503, detail=f"所有 OpenAI 端点都失败了。最后错误: {last_error}")
 
 
@@ -1032,21 +1023,21 @@ async def openai_proxy(
     
     # 记录日志
     async def log_usage(status_code: int = 200, error_msg: str = None):
-        latency = round((time.time() - start_time), 1)
-        
+        latency_ms = round((time.time() - start_time) * 1000, 1)  # 修复：计算毫秒
+
         # 错误分类
         error_type = None
         error_code = None
         if status_code != 200 and error_msg:
             error_type, error_code = classify_error_simple(status_code, error_msg)
-        
+
         log = UsageLog(
             user_id=user.id,
             credential_id=None,
             model="openai",
             endpoint=f"/openai/{path}",
             status_code=status_code,
-            latency_ms=latency,
+            latency_ms=latency_ms,
             error_message=error_msg[:2000] if error_msg else None,
             error_type=error_type,
             error_code=error_code
@@ -1058,7 +1049,7 @@ async def openai_proxy(
             "model": "openai",
             "status_code": status_code,
             "error_type": error_type,
-            "latency_ms": round(latency, 0),
+            "latency_ms": round(latency_ms, 0),
             "created_at": datetime.utcnow().isoformat()
         })
         await notify_stats_update()
