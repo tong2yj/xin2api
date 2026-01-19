@@ -465,6 +465,8 @@ async def handle_openai_endpoint(request: Request, user: User, db: AsyncSession,
                     client = httpx.AsyncClient(timeout=60.0)
                     log_recorded = False  # 标记是否已记录日志，避免重复记录
                     stream_success = False  # 标记流式传输是否成功完成
+                    has_error = False  # 标记流中是否包含错误
+                    error_message = None  # 错误信息
                     try:
                         async with client.stream("POST", url, json=body, headers=headers) as response:
                             response.raise_for_status()
@@ -485,22 +487,54 @@ async def handle_openai_endpoint(request: Request, user: User, db: AsyncSession,
                             except:
                                 pass
 
-                            # 流式传输数据
+                            # 流式传输数据，同时检测错误
                             async for chunk in response.aiter_bytes():
+                                # 检测SSE流中的错误（简单检测：查找 "error" 关键字）
+                                try:
+                                    chunk_str = chunk.decode('utf-8', errors='ignore')
+                                    if '"error"' in chunk_str and not has_error:
+                                        has_error = True
+                                        # 尝试提取错误信息
+                                        try:
+                                            import re
+                                            # 匹配 data: {...} 格式
+                                            match = re.search(r'data:\s*(\{.*?\})', chunk_str, re.DOTALL)
+                                            if match:
+                                                data_json = json.loads(match.group(1))
+                                                if 'error' in data_json:
+                                                    error_message = json.dumps(data_json['error'])
+                                        except:
+                                            error_message = "Stream contains error"
+                                except:
+                                    pass
                                 yield chunk
 
-                            # 流式传输成功完成，记录成功日志
+                            # 流式传输完成，根据是否有错误记录日志
                             try:
                                 async with async_session() as log_db:
-                                    log = UsageLog(
-                                        user_id=user.id,
-                                        model=model,
-                                        endpoint="/v1/chat/completions",
-                                        status_code=200,
-                                        latency_ms=round((time.time() - start_time) * 1000, 1),
-                                        client_ip=client_ip,
-                                        user_agent=user_agent
-                                    )
+                                    if has_error:
+                                        # 记录错误日志
+                                        log = UsageLog(
+                                            user_id=user.id,
+                                            model=model,
+                                            endpoint="/v1/chat/completions",
+                                            status_code=400,  # 标记为错误
+                                            latency_ms=round((time.time() - start_time) * 1000, 1),
+                                            error_message=error_message[:2000] if error_message else "Stream contains error",
+                                            client_ip=client_ip,
+                                            user_agent=user_agent
+                                        )
+                                    else:
+                                        # 记录成功日志
+                                        log = UsageLog(
+                                            user_id=user.id,
+                                            model=model,
+                                            endpoint="/v1/chat/completions",
+                                            status_code=200,
+                                            latency_ms=round((time.time() - start_time) * 1000, 1),
+                                            client_ip=client_ip,
+                                            user_agent=user_agent
+                                        )
                                     log_db.add(log)
                                     await log_db.commit()
                                 log_recorded = True
@@ -1071,6 +1105,8 @@ async def openai_proxy(
             # 流式响应
             async def stream_generator():
                 log_recorded = False  # 标记是否已记录日志，避免重复记录
+                has_error = False  # 标记流中是否包含错误
+                error_message = None  # 错误信息
                 try:
                     async with httpx.AsyncClient(timeout=120.0) as client:
                         async with client.stream(
@@ -1084,12 +1120,33 @@ async def openai_proxy(
                                 log_recorded = True
                                 yield f"data: {json.dumps({'error': error.decode()})}\n\n"
                                 return
-                            
+
+                            # 流式传输数据，同时检测错误
                             async for line in response.aiter_lines():
                                 if line:
+                                    # 检测SSE流中的错误
+                                    try:
+                                        if '"error"' in line and not has_error:
+                                            has_error = True
+                                            # 尝试提取错误信息
+                                            try:
+                                                import re
+                                                match = re.search(r'data:\s*(\{.*?\})', line, re.DOTALL)
+                                                if match:
+                                                    data_json = json.loads(match.group(1))
+                                                    if 'error' in data_json:
+                                                        error_message = json.dumps(data_json['error'])
+                                            except:
+                                                error_message = "Stream contains error"
+                                    except:
+                                        pass
                                     yield f"{line}\n"
-                    
-                    await log_usage()
+
+                    # 根据是否有错误记录日志
+                    if has_error:
+                        await log_usage(400, error_msg=error_message if error_message else "Stream contains error")
+                    else:
+                        await log_usage()
                     log_recorded = True
                 except Exception as e:
                     error_str = str(e)
