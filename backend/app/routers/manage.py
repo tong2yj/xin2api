@@ -872,6 +872,7 @@ async def get_config(user: User = Depends(get_current_admin)):
         "announcement_title": settings.announcement_title,
         "announcement_content": settings.announcement_content,
         "announcement_read_seconds": settings.announcement_read_seconds,
+        "enable_gcli2api_bridge": settings.enable_gcli2api_bridge,
     }
 
 
@@ -895,25 +896,6 @@ async def get_public_config():
     from app.config import settings
     return {
         "allow_registration": settings.allow_registration,
-    }
-
-
-@router.get("/config")
-async def get_config(
-    user: User = Depends(get_current_admin)
-):
-    """获取管理员配置（仅管理员）"""
-    from app.config import settings
-    return {
-        "allow_registration": settings.allow_registration,
-        "require_approval": settings.require_approval,
-        "default_daily_quota": settings.default_daily_quota,
-        "credential_reward_quota": settings.credential_reward_quota,
-        "announcement_enabled": settings.announcement_enabled,
-        "announcement_title": settings.announcement_title,
-        "announcement_content": settings.announcement_content,
-        "announcement_read_seconds": settings.announcement_read_seconds,
-        "enable_gcli2api_bridge": settings.enable_gcli2api_bridge,
     }
 
 

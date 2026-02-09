@@ -66,7 +66,7 @@ export default function OpenAIEndpointsTab() {
   const fetchBridgeConfig = async () => {
     try {
       const res = await adminApi.config.get()
-      setBridgeEnabled(res.data.enable_gcli2api_bridge)
+      setBridgeEnabled(res.data.enable_gcli2api_bridge ?? true)
     } catch (err) {
       console.error('获取桥接配置失败', err)
     }
