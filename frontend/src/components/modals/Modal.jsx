@@ -93,12 +93,18 @@ export function InputModal({ isOpen, onClose, onSubmit, title, label, placeholde
     }
   }, [isOpen])
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault()
     const value = inputRef.current?.value
     if (value !== null && value !== undefined) {
-      onSubmit(value)
-      onClose()
+      try {
+        const result = await onSubmit(value)
+        if (result !== false) {
+          onClose()
+        }
+      } catch {
+        // Keep modal open when submit fails.
+      }
     }
   }
 

@@ -84,6 +84,10 @@ export default function StatsTab() {
     },
   ];
 
+  const usageRatio = stats && stats.total_quota > 0
+    ? stats.today_usage / stats.total_quota
+    : 0;
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -160,24 +164,24 @@ export default function StatsTab() {
             <div className="flex items-center justify-between mb-3">
               <span className="text-dark-300 text-sm font-medium">每日配额使用率</span>
               <span className={`text-sm font-bold ${
-                (stats.today_usage / stats.total_quota) > 0.8 ? 'text-red-400' : 'text-primary-400'
+                usageRatio > 0.8 ? 'text-red-400' : 'text-primary-400'
               }`}>
                 {stats.total_quota > 0
-                  ? ((stats.today_usage / stats.total_quota) * 100).toFixed(1)
+                  ? (usageRatio * 100).toFixed(1)
                   : 0}%
               </span>
             </div>
             <div className="h-3 bg-dark-800 rounded-full overflow-hidden shadow-inner">
               <div
                 className={`h-full rounded-full transition-all duration-1000 ease-out ${
-                  (stats.today_usage / stats.total_quota) > 0.8
+                  usageRatio > 0.8
                     ? 'bg-red-500'
-                    : (stats.today_usage / stats.total_quota) > 0.5
+                    : usageRatio > 0.5
                     ? 'bg-amber-500'
                     : 'bg-emerald-500'
                 }`}
                 style={{
-                  width: `${Math.min(100, (stats.today_usage / stats.total_quota) * 100)}%`
+                  width: `${Math.min(100, usageRatio * 100)}%`
                 }}
               />
             </div>

@@ -144,13 +144,15 @@ export default function UsersTab() {
     showInput('重置密码', `为用户 ${username} 设置新密码`, '', async (newPassword) => {
       if (!newPassword || newPassword.length < 6) {
         toast.error('密码长度至少6位');
-        return;
+        return false;
       }
       try {
         await api.put(`/api/admin/users/${userId}/password`, { new_password: newPassword });
         toast.success(`用户 ${username} 的密码已重置`);
+        return true;
       } catch (err) {
         toast.error(err.response?.data?.detail || '密码重置失败');
+        return false;
       }
     });
   };

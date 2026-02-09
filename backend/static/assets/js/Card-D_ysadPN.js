@@ -1,4 +1,4 @@
-import{j as r}from"./index-Cr7an6Hi.js";import{r as a}from"./react-vendor-B_5cLHhr.js";const n=a.memo(function({children:s,className:e="",padding:t=!0}){return r.jsx("div",{className:`
+import{j as r}from"./index-Ct8Fsx2R.js";import{r as a}from"./react-vendor-B_5cLHhr.js";const n=a.memo(function({children:s,className:e="",padding:t=!0}){return r.jsx("div",{className:`
         bg-bg-card rounded-2xl
         ${t?"p-6 sm:p-8":""}
         transition-all duration-300 ease-out
